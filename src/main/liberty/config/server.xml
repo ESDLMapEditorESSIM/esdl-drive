@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<server description="${project.name}">
+
+    <featureManager>
+        <feature>microProfile-3.2</feature>
+        <feature>localConnector-1.0</feature>
+        <feature>openidConnectClient-1.0</feature>
+        <feature>transportSecurity-1.0</feature>
+    </featureManager>
+    
+    <openidConnectClient id="cdo-mondaine" 
+		scope="openid profile email roles"
+		clientId="cdo-mondaine"
+		clientSecret="972d10db-26d4-492b-83ce-c29f05689019"
+		discoveryEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/.well-known/openid-configuration" 
+		authorizationEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/auth"
+		tokenEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/token" >
+    </openidConnectClient>
+    
+    <!-- 
+    {
+  "realm": "esdl-mapeditor",
+  "auth-server-url": "https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/auth",
+  "ssl-required": "external",
+  "resource": "cdo-mondaine",
+  "verify-token-audience": true,
+  "credentials": {
+    "secret": "972d10db-26d4-492b-83ce-c29f05689019"
+  },
+  "confidential-port": 0,
+  "policy-enforcer": {}
+}
+    
+     -->
+
+    <httpEndpoint id="defaultHttpEndpoint"
+                  httpPort="8181"
+                  httpsPort="8543">
+    </httpEndpoint>
+
+	<logging traceSpecification="nl.tno.*=all" />
+
+    <webApplication location="${project.name}.war" contextRoot="/"/>
+    <mpMetrics authentication="false"/>
+
+    <!-- This is the keystore that will be used by SSL and by JWT. -->
+    <keyStore id="defaultKeyStore" trustDefaultCerts="true" location="public.jks" type="JKS" password="admin123!" />
+
+
+
+    <!-- The MP JWT configuration that injects the caller's JWT into a ResourceScoped bean for inspection. -->
+<!--     <mpJwt id="jwtUserConsumer" keyName="theKeyId" audiences="targetService" issuer="${jwt.issuer}"/> -->
+
+</server>

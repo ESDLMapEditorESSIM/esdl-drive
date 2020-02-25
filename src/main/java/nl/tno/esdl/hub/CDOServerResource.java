@@ -1,0 +1,184 @@
+package nl.tno.esdl.hub;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.logging.Logger;
+
+import javax.enterprise.context.RequestScoped;
+import javax.inject.Inject;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.GET;
+import javax.ws.rs.HEAD;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+
+import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
+import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
+import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
+import org.eclipse.microprofile.auth.LoginConfig;
+import org.eclipse.microprofile.jwt.JsonWebToken;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+
+import esdl.EnergySystem;
+import esdl.EsdlFactory;
+import esdl.EsdlPackage;
+import nl.tno.esdl.hub.cdo.CDOManager;
+import nl.tno.esdl.hub.cdo.ResourceMetadata;
+import nl.tno.esdl.hub.cdo.ResourceResult;
+
+/**
+ * @author werkmane
+ */
+
+@LoginConfig(authMethod = "MP-JWT")
+@Path("/")
+@RequestScoped
+public class CDOServerResource {
+
+	Logger log = Logger.getLogger(this.getClass().getName());
+
+	@Inject
+	CDOManager cdoManager;
+	
+	@Inject
+	private JsonWebToken callerPrincipal;
+
+	@Parameter(allowEmptyValue = false, in = ParameterIn.PATH, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces")
+	@GET
+	@Path("/resource/{resourceURL:.+}")
+	@Produces(MediaType.APPLICATION_XML)
+	public Response getResource(@PathParam("resourceURL") String resourceURL) {
+		// String resourceURL = "ewoud/test1.esdl";
+		log.info("getResource() ResourceURL: " + resourceURL);
+		try (ResourceResult resourceResult = cdoManager.getResource("/" + resourceURL)) {
+			String xmlString = cdoManager.convertToXMLString(resourceResult.getCDOResource());
+			//log.info("Retrieved: " + xmlString);
+			if (xmlString == null) {
+				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
+			}
+			return Response.ok(xmlString).lastModified(resourceResult.getLastModified()).build();
+		} catch (Exception e) {
+			log.severe("Error: " + e);
+			e.printStackTrace();
+			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
+		}
+	}
+
+	// update or create a new resource with resourceURL
+	@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
+/*	@Parameter(
+			description = "The Energy System to store as a string in the POST data",
+			name = "stream",
+			required = true,
+			in = ParameterIn.DEFAULT,
+			example = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><esdl:EnergySystem name=\"...\" ...",
+			schema = @Schema(type = SchemaType.STRING))*/
+	@APIResponse(responseCode = "200", description = "Stores a resource in the repository using the supplied URI. Only response is a HTTP status code")
+	@PUT
+	@Path("/resource/{resourceURL:.+}")
+	@Consumes(MediaType.APPLICATION_XML)
+	public Response putResource(@PathParam("resourceURL") String resourceURL,
+				InputStream stream) {
+		// String resourceURL = "ewoud/test1.esdl";
+		XMLResourceImpl resource = new XMLResourceImpl();
+		try {
+			log.info("Reading contents of /" + resourceURL);
+			resource.load(stream, null);
+			log.info("Done reading contents of /" + resourceURL);
+			EObject rootEObject = resource.getContents().get(0);
+			CDOCommitInfo commitInfo = cdoManager.storeResource("/" + resourceURL, rootEObject);
+			
+			return Response.ok().build();
+		} catch (Exception e) {
+			log.severe("Error: " + e);
+			e.printStackTrace();
+			if (e instanceof PackageNotFoundException) {
+				return Response.serverError().entity(
+						"Input is not of type ESDL: XML namespaceURI is not defined or is (xmlns:esdl) is different from "
+								+ EsdlPackage.eNS_URI)
+						.type(MediaType.TEXT_PLAIN).build();
+			}
+			return Response.serverError().entity("Failed to store the resource " + resourceURL)
+					.type(MediaType.TEXT_PLAIN).build();
+		}
+	}
+
+	/**
+	 * HEAD -> ok if file exists
+	 * 
+	 * in GET, HEAD, HeaderField("last-modified") also content-length
+	 * 
+	 * in OPTIONS String allow = httpURLConnection.getHeaderField("Allow"); if PUT
+	 * is in there, URI is marked read-write, otherwise read-only
+	 * 
+	 */
+	@Parameter(allowEmptyValue = false, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
+	@APIResponse(responseCode = "200", description = "Returns OK if the resource exists and is accessible by the user")
+	@APIResponse(responseCode = "403", description = "Returns not found if resource is not found")
+	@HEAD
+	@Path("/resource/{resourceURL:.+}")
+	public Response head(@PathParam("resourceURL") String resourceURL) {
+		log.info("getResource() ResourceURL: " + resourceURL);
+		boolean resourceExists = cdoManager.existResource("/" + resourceURL);
+		if (resourceExists) {
+			ResourceMetadata resourceMetaData = cdoManager.getResourceMetaData(resourceURL);
+			return Response.ok().lastModified(new Date(resourceMetaData.getTimeStamp())).build();
+		} else {
+			return Response.status(Status.NOT_FOUND).build();
+		}
+	}
+
+	@GET
+	@Path("/store")
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response storeEDSL() {
+
+		EnergySystem es = EsdlFactory.eINSTANCE.createEnergySystem();
+		es.setName("New ES");
+		es.setDescription("now = " + System.currentTimeMillis());
+
+		try {
+			cdoManager.storeResource("/ewoud/test1.esdl", es);
+		} catch (Exception e) {
+			log.severe("Error storing file in CDO repository");
+			e.printStackTrace();
+			return Response.serverError().entity("Error storing file").build();
+		}
+
+		return Response.accepted("Success").build();
+	}
+
+	@GET
+	@Path("/list")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response listResources() {
+		log.info("Token: " + callerPrincipal);
+		log.info("Username: " + callerPrincipal.getName());
+		log.info("Groups: " + callerPrincipal.getGroups());
+		log.info("Subject: " + callerPrincipal.getSubject());
+		log.info("Claim names: " + callerPrincipal.getClaimNames());
+		log.info("Roles: " + callerPrincipal.getClaim("roles"));
+		ArrayList<String> resources = cdoManager.listResources();
+		return Response.ok(resources).build();
+	}
+	@GET
+	@Path("/listpath/{path}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response listResourcesByPath(@PathParam("path") String path) {
+		log.info("Path=" + path);
+		ArrayList<String> resources = cdoManager.listPath(path);
+		return Response.ok(resources).build();
+	}
+
+}
