@@ -9,14 +9,14 @@
     </featureManager>
     
     <openidConnectClient id="cdo-mondaine" 
-		scope="openid profile email roles"
+		scope="openid profile email"
 		clientId="cdo-mondaine"
 		clientSecret="972d10db-26d4-492b-83ce-c29f05689019"
-		discoveryEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/.well-known/openid-configuration" 
+
 		authorizationEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/auth"
 		tokenEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/token" >
     </openidConnectClient>
-    
+<!-- 		discoveryEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/.well-known/openid-configuration"  -->    
     <!-- 
     {
   "realm": "esdl-mapeditor",
@@ -43,12 +43,12 @@
     <webApplication location="${project.name}.war" contextRoot="/"/>
     <mpMetrics authentication="false"/>
 
-    <!-- This is the keystore that will be used by SSL and by JWT. -->
+    <!-- This is the keystore that will be used by SSL and by JWT.  -->
     <keyStore id="defaultKeyStore" trustDefaultCerts="true" location="public.jks" type="JKS" password="admin123!" />
 
 
 
     <!-- The MP JWT configuration that injects the caller's JWT into a ResourceScoped bean for inspection. -->
-<!--     <mpJwt id="jwtUserConsumer" keyName="theKeyId" audiences="targetService" issuer="${jwt.issuer}"/> -->
+    <mpJwt id="jwtUserConsumer" keyName="idm.hesi.energy" audiences="cdo-mondaine" issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"/>
 
 </server>

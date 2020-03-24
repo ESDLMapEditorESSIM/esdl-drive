@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.logging.Logger;
 
+import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import javax.ws.rs.Consumes;
@@ -22,11 +23,8 @@ import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
-import org.eclipse.microprofile.auth.LoginConfig;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
-import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
-import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
@@ -41,7 +39,6 @@ import nl.tno.esdl.hub.cdo.ResourceResult;
  * @author werkmane
  */
 
-@LoginConfig(authMethod = "MP-JWT")
 @Path("/")
 @RequestScoped
 public class CDOServerResource {
@@ -162,6 +159,7 @@ public class CDOServerResource {
 	@GET
 	@Path("/list")
 	@Produces(MediaType.APPLICATION_JSON)
+	@RolesAllowed("TNO")
 	public Response listResources() {
 		log.info("Token: " + callerPrincipal);
 		log.info("Username: " + callerPrincipal.getName());
