@@ -7,23 +7,31 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.context.Destroyed;
 import javax.enterprise.context.Initialized;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.revision.CDORevision;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
+import org.eclipse.emf.cdo.eresource.CDOBinaryResource;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
 import org.eclipse.emf.cdo.eresource.CDOResourceNode;
+import org.eclipse.emf.cdo.eresource.CDOTextResource;
 import org.eclipse.emf.cdo.net4j.CDONet4jSessionConfiguration;
 import org.eclipse.emf.cdo.net4j.CDONet4jUtil;
 import org.eclipse.emf.cdo.session.CDOSession;
@@ -32,9 +40,12 @@ import org.eclipse.emf.cdo.transaction.CDOTransaction;
 import org.eclipse.emf.cdo.util.CommitException;
 import org.eclipse.emf.cdo.util.ConcurrentAccessException;
 import org.eclipse.emf.cdo.view.CDOView;
+import org.eclipse.emf.common.util.BasicEList;
 import org.eclipse.emf.common.util.ECollections;
 import org.eclipse.emf.common.util.EList;
+import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
@@ -54,13 +65,17 @@ import org.eclipse.net4j.util.om.OMPlatform;
 import org.eclipse.net4j.util.om.log.PrintLogHandler;
 import org.eclipse.net4j.util.om.trace.PrintTraceHandler;
 
+import esdl.EnergySystem;
 import esdl.EsdlPackage;
+import nl.tno.esdl.hub.browser.BrowserNode;
+import nl.tno.esdl.hub.browser.BrowserNode.BrowserNodeType;
 
 /**
  * @author werkmane
  *
  */
-@ApplicationScoped
+//@ApplicationScoped
+@Singleton
 public class CDOManager {
 
 	@Inject
@@ -84,9 +99,6 @@ public class CDOManager {
 		setUpCDO();
 	}
 
-	public void createCDOSession() {
-
-	}
 
 	public CDOCommitInfo storeResource(String resourceName, EObject rootObject)
 			throws ConcurrentAccessException, CommitException {
@@ -225,15 +237,6 @@ public class CDOManager {
 
 	}
 
-	public void deleteResource() {
-	}
-
-	public void updateResource() {
-	}
-
-	public void endCDOSession() {
-	}
-	
 	public ArrayList<String> listPath(String path) {
 		CDOSession session = configuration.openNet4jSession();
 		CDOTransaction transaction = session.openTransaction();
@@ -310,19 +313,19 @@ public class CDOManager {
 		      @Override
 		      public void notifyEvent(IEvent event)
 		      {
-		    	log.fine("CDO Event: " + event);
+		    	log.info("CDO Event: " + event);
 		        if (event instanceof SessionOpenedEvent)
 		        {
 		          SessionOpenedEvent e = (SessionOpenedEvent)event;
 		          CDOSession session = e.getOpenedSession();
-		          log.fine("Opened " + session);
+		          log.info("Opened " + session);
 
 		          session.addListener(new LifecycleEventAdapter()
 		          {
 		            @Override
 		            protected void onAboutToDeactivate(ILifecycle lifecycle)
 		            {
-		            	log.fine("Closing " + lifecycle);
+		            	log.info("Closing " + lifecycle);
 		            }
 		          });
 		        }
@@ -344,6 +347,155 @@ public class CDOManager {
 		log.info("Shutting down CDO connection");
 		connector.close();
 		container.deactivate();
+	}
+
+
+	public List<BrowserNode> getFolderContents(String path) {
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		EList<CDOResourceNode> nodes;
+		if (path.equals("/") || path.equals("")) {
+			nodes = transaction.getRootResource().getContents()
+					.stream().filter(CDOResourceNode.class::isInstance)
+					.map(CDOResourceNode.class::cast)
+					.collect(Collectors.toCollection(BasicEList::new));
+		} else {		
+			CDOResourceFolder resourceNode = transaction.getResourceFolder(path);
+			nodes = resourceNode.getNodes();
+		}
+		ArrayList<BrowserNode> list = new ArrayList<>();
+		for (CDOResourceNode node : nodes) {
+			BrowserNode browserNode = new BrowserNode(node.getName(), node.getPath());
+			if (node instanceof CDOResourceFolder) {
+				CDOResourceFolder cdoResourceFolder = (CDOResourceFolder) node;
+				browserNode.setType(BrowserNodeType.FOLDER);
+				if (cdoResourceFolder.getNodes().size() > 0) {
+					browserNode.setHasSubNodes(true);
+				}
+			} else if (node instanceof CDOBinaryResource) {
+				browserNode.setType(BrowserNodeType.BINARY);
+			} else if (node instanceof CDOTextResource) {
+				browserNode.setType(BrowserNodeType.TEXT);
+			} else if (node instanceof CDOResource) {
+				browserNode.setType(BrowserNodeType.ESDL_FILE);				
+			}
+			list.add(browserNode);
+			
+		}
+		transaction.close();
+		session.close();
+		return list;
+	}
+
+
+	public Map<String, Object> getContentSummary(String fileName) {
+		HashMap<String, Object> map = new HashMap<>();
+		if (!fileName.endsWith(".esdl")) return map;
+		
+		map.put("type", "esdl");
+		map.put("path", fileName);
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		CDOResource resource = transaction.getResource(fileName);
+		if (resource == null) {
+			
+			map.put("fileName", fileName);
+			map.put("content", fileName + " not found");
+			return map;
+		}
+		System.out.println("Retreiving " + fileName);
+		System.out.print("getting revisions");
+		resource.cdoPrefetch( CDORevision.DEPTH_INFINITE);
+		System.out.println("done");
+//		resource.cdoHistory().triggerLoad();
+//		
+//		while (resource.cdoHistory().isLoading()) {
+//			try {
+//				Thread.sleep(10);
+//			} catch (InterruptedException e) {
+//				e.printStackTrace();
+//			}
+//		}
+		EnergySystem es = (EnergySystem) resource.getContents().get(0);
+		//System.out.println("ES name: " + es.getName());
+		map.put("fileName", resource.getName());
+		map.put("Revision version", resource.cdoRevision().getVersion());
+		map.put("Last saved", LocalDateTime.ofInstant(Instant.ofEpochMilli(resource.cdoRevision().getTimeStamp()), ZoneId.systemDefault()).toString());
+		
+		EList<EStructuralFeature> eAllStructuralFeatures = es.eClass().getEAllStructuralFeatures();
+		for(EStructuralFeature feature: eAllStructuralFeatures) {
+			if (feature instanceof EAttribute) {
+				map.put(feature.getName(), es.eGet(feature));
+			}
+		}				
+		transaction.close();
+		session.close();
+		return map;
+	}
+	
+	
+	public String createFolder(String path) throws ConcurrentAccessException, CommitException {
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		CDOResourceFolder resourceFolder = transaction.getOrCreateResourceFolder(path);
+		String folderName = resourceFolder.getPath();
+		transaction.commit();
+		session.close();
+		return folderName;
+	}
+	
+	public String rename(String path, String newName) throws ConcurrentAccessException, CommitException, CDOResourceNodeNotFoundException {
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		try {
+			CDOResourceNode resourceNode = transaction.getResourceNode(path);
+			resourceNode.setName(newName);
+			String pathName = resourceNode.getPath();
+			transaction.commit();
+			session.close();
+			return pathName;
+		} catch (CDOResourceNodeNotFoundException e) {
+			session.close();
+			throw e;
+		}
+	}
+	
+	public void deleteResource(String path) throws IOException, CDOResourceNodeNotFoundException, ConcurrentAccessException, CommitException {
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		try {
+			CDOResourceNode resourceNode = transaction.getResourceNode(path);
+			resourceNode.delete(null);
+			transaction.commit();
+			session.close();
+		} catch (CDOResourceNodeNotFoundException e) {
+			session.close();
+			throw e;
+		} catch (IOException e) {
+			session.close();
+			throw e;
+		}
+		
+	}
+
+
+	public String moveNode(String path, String newParentFolder) throws IOException, ConcurrentAccessException, CommitException {
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		try {
+			CDOResourceNode resourceNode = transaction.getResourceNode(path);
+			CDOResourceFolder newFolder = transaction.getResourceFolder(newParentFolder);
+			resourceNode.setFolder(newFolder);
+			resourceNode.setPath(newParentFolder);
+			transaction.commit();
+			String newPath =  resourceNode.getPath();
+			session.close();
+			return newPath;
+		} catch (CDOResourceNodeNotFoundException e) {
+			session.close();
+			throw e;
+		}
+				
 	}
 
 }

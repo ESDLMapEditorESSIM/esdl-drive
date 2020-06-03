@@ -23,7 +23,6 @@ import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -48,8 +47,6 @@ public class CDOServerResource {
 	@Inject
 	CDOManager cdoManager;
 	
-	@Inject
-	private JsonWebToken callerPrincipal;
 
 	@Parameter(allowEmptyValue = false, in = ParameterIn.PATH, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces")
 	@GET
@@ -159,14 +156,15 @@ public class CDOServerResource {
 	@GET
 	@Path("/list")
 	@Produces(MediaType.APPLICATION_JSON)
-	@RolesAllowed("TNO")
+	@RolesAllowed("cdo_read")
 	public Response listResources() {
-		log.info("Token: " + callerPrincipal);
-		log.info("Username: " + callerPrincipal.getName());
-		log.info("Groups: " + callerPrincipal.getGroups());
-		log.info("Subject: " + callerPrincipal.getSubject());
-		log.info("Claim names: " + callerPrincipal.getClaimNames());
-		log.info("Roles: " + callerPrincipal.getClaim("roles"));
+//		log.info("Token: " + callerPrincipal);
+//		log.info("Username: " + callerPrincipal.getName());
+//		log.info("Groups: " + callerPrincipal.getGroups());
+//		log.info("Subject: " + callerPrincipal.getSubject());
+//		log.info("Claim names: " + callerPrincipal.getClaimNames());
+//		log.info("Roles: " + callerPrincipal.getClaim("roles"));
+		
 		ArrayList<String> resources = cdoManager.listResources();
 		return Response.ok(resources).build();
 	}

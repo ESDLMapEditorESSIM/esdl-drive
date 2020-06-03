@@ -9,14 +9,39 @@
 	<version>1.0-SNAPSHOT</version>
 	<packaging>war</packaging>
 	<properties>
-		<openliberty.maven.version>3.1</openliberty.maven.version>
-		<final.name>hub</final.name>
-		<failOnMissingWebXml>false</failOnMissingWebXml>
-		<openliberty.version>[20.0.0.2,)</openliberty.version>
-		<maven.compiler.source>1.8</maven.compiler.source>
+		<openliberty.maven.version>3.2</openliberty.maven.version>
 		<maven.compiler.target>1.8</maven.compiler.target>
+		<failOnMissingWebXml>false</failOnMissingWebXml>
+		<maven.compiler.source>1.8</maven.compiler.source>
+		<openliberty.version>20.0.0.4</openliberty.version>
+		<final.name>hub</final.name>
 	</properties>
+
+
+	<!-- <assemblyArtifact> -->
+	<!-- <groupId>io.openliberty</groupId> -->
+	<!-- <artifactId>openliberty-kernel</artifactId> -->
+	<!-- <version>18.0.0.2</version> -->
+	<!-- <type>zip</type> -->
+	<!-- </assemblyArtifact> -->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.openliberty.features</groupId>
+				<artifactId>features-bom</artifactId>
+				<version>${openliberty.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
+		<dependency>
+			<groupId>io.openliberty.features</groupId>
+			<artifactId>openidConnectClient-1.0</artifactId>
+			<type>esa</type>
+			<scope>provided</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.eclipse.microprofile</groupId>
 			<artifactId>microprofile</artifactId>
@@ -81,20 +106,25 @@
 									<goal>install-feature</goal>
 									<goal>deploy</goal>
 									<goal>package</goal>
+									<goal>dev</goal>
 								</goals>
 								<configuration>
-									<outputDirectory>target/wlp-package</outputDirectory>
+									<serverStartTimeout>60</serverStartTimeout>
+									<verifyTimeout>61</verifyTimeout>
+	 								<outputDirectory>target/wlp-package</outputDirectory>
 								</configuration>
 							</execution>
 						</executions>
 						<configuration>
-							<appArchive>${project.build.directory}/${final.name}.war</appArchive>
+							<appArchive>${project.build.directory}/${final.name}.war
+							</appArchive>
 							<include>runnable</include>
 							<serverName>${final.name}</serverName>
 							<bootstrapProperties>
 								<project.name>${final.name}</project.name>
-								<jwt.issuer>https://server.example.com</jwt.issuer>
+								<!-- <jwt.issuer>https://server.example.com</jwt.issuer> -->
 							</bootstrapProperties>
+							<serverStartTimeout>60</serverStartTimeout>
 						</configuration>
 					</plugin>
 				</plugins>

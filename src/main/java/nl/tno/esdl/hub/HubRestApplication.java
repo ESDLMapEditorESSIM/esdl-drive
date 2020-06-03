@@ -8,7 +8,7 @@ import org.eclipse.microprofile.auth.LoginConfig;
 /**
  *
  */
-@LoginConfig(authMethod = "MP-JWT") 
+//@LoginConfig(authMethod = "MP-JWT") 
 @ApplicationPath("/store")
 public class HubRestApplication extends Application {
 
