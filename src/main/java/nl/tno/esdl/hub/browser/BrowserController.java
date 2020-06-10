@@ -31,7 +31,11 @@ import org.eclipse.emf.cdo.util.CommitException;
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 import com.ibm.websphere.security.openidconnect.token.IdToken;
 
+import nl.tno.esdl.hub.browser.BrowserNode.BrowserNodeType;
+import nl.tno.esdl.hub.cdo.AccessController;
 import nl.tno.esdl.hub.cdo.CDOManager;
+import nl.tno.esdl.hub.cdo.PermissionDeniedException;
+import nl.tno.esdl.hub.cdo.UserInfo;
 
 /**
  *
@@ -73,8 +77,9 @@ public class BrowserController {
     		@QueryParam("type") String type,
     		@QueryParam("parent") String parent)  {
         IdToken token = PropagationHelper.getIdToken();
-        System.out.println("Token: " + token);
-        System.out.println("NEW User groups:" +token.getClaim("user_group"));
+        UserInfo userInfo = AccessController.userInfoFromToken(token);
+        //System.out.println("Token: " + token);
+        //System.out.println("NEW User groups:" +token.getClaim("user_group"));
         
         Operation op = Operation.none;
         if (operation != null && !(operation.length() == 0)) {
@@ -92,31 +97,38 @@ public class BrowserController {
 		case get_node:
 			if (id.equals("#")) {
 				
-				JsonArray children = getFolderContents("/");
+				JsonArray children = getFolderContents(userInfo, "/");
 				
 				JsonObject root = Json.createObjectBuilder().add("text", "Mondaine Hub")
 						.add("children", children)
+						.add("id", "/")
+						.add("icon", BrowserNodeType.FOLDER.getIconName())
+						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();
 				jsonObject = Json.createArrayBuilder().add(root).build();
 			} else {
-				jsonObject = getFolderContents(id);
+				jsonObject = getFolderContents(userInfo, id);
 				
 			}
 			break;
 		case get_content:
-			Map<String, Object> contentSummary = cdoManager.getContentSummary(id);
-			JsonObjectBuilder contentBuilder = Json.createObjectBuilder();
-			for (Entry<String, Object> entry: contentSummary.entrySet()) {
-				if (entry.getValue() instanceof String) {
-					contentBuilder.add(entry.getKey(), (String)entry.getValue());
-				} else if (entry.getValue() instanceof Number) {
-					contentBuilder.add(entry.getKey(), String.valueOf(entry.getValue()));
-				} else {
-					log.info("Ignoring " + entry);
+			try {
+				Map<String, Object> contentSummary = cdoManager.getContentSummary(userInfo, id);
+				JsonObjectBuilder contentBuilder = Json.createObjectBuilder();
+				for (Entry<String, Object> entry: contentSummary.entrySet()) {
+					if (entry.getValue() instanceof String) {
+						contentBuilder.add(entry.getKey(), (String)entry.getValue());
+					} else if (entry.getValue() instanceof Number) {
+						contentBuilder.add(entry.getKey(), String.valueOf(entry.getValue()));
+					} else {
+						log.info("Ignoring " + entry);
+					}
 				}
+				jsonObject = contentBuilder.build();
+				System.out.println(jsonObject);
+			} catch (PermissionDeniedException e) {
+				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 			}
-			jsonObject = contentBuilder.build();
-			System.out.println(jsonObject);
 			break;
 		case create_node:
 			String parentFolder = id;
@@ -133,13 +145,18 @@ public class BrowserController {
 				break;
 			case folder:
 				String newPath = parentFolder + "/" + newName;
+				if (newPath.startsWith("//")) {
+					newPath = parentFolder + newName;
+				}
 				try {
 					System.out.println("Creating folder:" + newPath);
-					String newFolder = cdoManager.createFolder(newPath);
+					String newFolder = cdoManager.createFolder(userInfo, newPath);
 					jsonObject = Json.createObjectBuilder().add("id", newFolder).build();
 				} catch (CommitException e) {
 					log.severe("Error in creating folder:" + e);
 					return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error creating folder")).build();
+				} catch (PermissionDeniedException e) {
+					return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 				}
 				// return d.id, id == new path
 				break;
@@ -149,44 +166,58 @@ public class BrowserController {
 			String folderPath = id;
 			System.out.println(id);
 			try {
-				String renamedFolder = cdoManager.rename(folderPath, newName);
+				String renamedFolder = cdoManager.rename(userInfo, folderPath, newName);
 				jsonObject = Json.createObjectBuilder().add("id", renamedFolder).build();
 			} catch (CommitException e) {
 				log.severe("Error in creating folder:" + e);
 				return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error renaming folder")).build();
 			} catch (CDOResourceNodeNotFoundException e ) {
 				return Response.serverError().status(Status.NOT_FOUND).entity(generateError("can't find folder")).build();
+			} catch (PermissionDeniedException e) {
+				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 			}
 			break;
 		case delete_node:
 			try {
-				cdoManager.deleteResource(id);
+				cdoManager.deleteResource(userInfo, id);
+				jsonObject = Json.createObjectBuilder().add("deleted", true).build();
 			} catch (CDOResourceNodeNotFoundException e) {
-				return Response.serverError().status(Status.NOT_FOUND).entity(generateError("can't find folder")).build();
+				return Response.serverError().status(Status.NOT_FOUND).entity(generateError("can't find file or folder " + id)).build();
 			} catch (CommitException e) {
 				e.printStackTrace();
-				return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error renaming folder")).build();
+				return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error renaming folder" + id)).build();
 			} catch (IOException e) {
 				e.printStackTrace();
-				return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error renaming folder")).build();
+				return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error renaming folder" + id)).build();
+			} catch (PermissionDeniedException e) {
+				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 			}
 			break;
 		case copy_node:
-			return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("not implemented")).build();
-			//if (parent == null || parent.isEmpty()) {
-			//	return Response.serverError().status(Status.BAD_REQUEST).entity(generateError("parent parameter missing")).build();
-			//}
-			//cdoManager.copyNode(id, parent);
-			//break;
+			if (parent == null || parent.isEmpty()) {
+				return Response.serverError().status(Status.BAD_REQUEST).entity(generateError("parent parameter missing")).build();
+			}
+			try {
+				String newPath = cdoManager.copyNode(userInfo, id, parent);
+				jsonObject = Json.createObjectBuilder().add("id", newPath).build();
+			} catch (CommitException e1) {
+				e1.printStackTrace();
+				return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error copying file " + id)).build();
+			} catch (PermissionDeniedException e) {
+				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
+			}
+			break;
 		case move_node:
 			if (parent == null || parent.isEmpty()) {
 				return Response.serverError().status(Status.BAD_REQUEST).entity(generateError("parent parameter missing")).build();
 			}
 			try {
-				String newPath = cdoManager.moveNode(id, parent);
+				String newPath = cdoManager.moveNode(userInfo, id, parent);
 				jsonObject = Json.createObjectBuilder().add("id", newPath).build();
 			} catch (IOException | CommitException e) {
 				return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error moving node")).build();
+			} catch (PermissionDeniedException e) {
+				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 			}
 			break;	
 		default:
@@ -216,9 +247,9 @@ public class BrowserController {
     	return Json.createObjectBuilder().add("error", reason).build();
     }
     
-    private JsonArray getFolderContents(String path) {
+    private JsonArray getFolderContents(UserInfo userInfo, String path) {
     	log.info("Get folder contents of "+ path);
-    	List<BrowserNode> folderContents = cdoManager.getFolderContents(path);
+    	List<BrowserNode> folderContents = cdoManager.getFolderContents(userInfo, path);
     	JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
     	for (BrowserNode node : folderContents) {
     		JsonObject nodeAsJson = Json.createObjectBuilder()
@@ -226,6 +257,8 @@ public class BrowserController {
 			.add("children", node.hasSubNodes())
 			.add("id", node.getPath())
 			.add("icon", node.getType().getIconName())
+			.add("type", node.getType().getIconName())
+			.add("writable", node.isWritable())
 			.build();
 			arrayBuilder.add(nodeAsJson);
 		}

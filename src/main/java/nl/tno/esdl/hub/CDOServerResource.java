@@ -20,6 +20,9 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
+import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
+import org.eclipse.emf.cdo.util.CommitException;
+import org.eclipse.emf.cdo.util.ConcurrentAccessException;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
@@ -27,12 +30,18 @@ import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
+import com.ibm.websphere.security.openidconnect.PropagationHelper;
+import com.ibm.websphere.security.openidconnect.token.IdToken;
+
 import esdl.EnergySystem;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
+import nl.tno.esdl.hub.cdo.AccessController;
 import nl.tno.esdl.hub.cdo.CDOManager;
+import nl.tno.esdl.hub.cdo.PermissionDeniedException;
 import nl.tno.esdl.hub.cdo.ResourceMetadata;
 import nl.tno.esdl.hub.cdo.ResourceResult;
+import nl.tno.esdl.hub.cdo.UserInfo;
 
 /**
  * @author werkmane
@@ -54,8 +63,9 @@ public class CDOServerResource {
 	@Produces(MediaType.APPLICATION_XML)
 	public Response getResource(@PathParam("resourceURL") String resourceURL) {
 		// String resourceURL = "ewoud/test1.esdl";
+		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		log.info("getResource() ResourceURL: " + resourceURL);
-		try (ResourceResult resourceResult = cdoManager.getResource("/" + resourceURL)) {
+		try (ResourceResult resourceResult = cdoManager.getResource(userInfo, "/" + resourceURL)) {
 			String xmlString = cdoManager.convertToXMLString(resourceResult.getCDOResource());
 			//log.info("Retrieved: " + xmlString);
 			if (xmlString == null) {
@@ -81,19 +91,19 @@ public class CDOServerResource {
 	@APIResponse(responseCode = "200", description = "Stores a resource in the repository using the supplied URI. Only response is a HTTP status code")
 	@PUT
 	@Path("/resource/{resourceURL:.+}")
-	@Consumes(MediaType.APPLICATION_XML)
-	public Response putResource(@PathParam("resourceURL") String resourceURL,
-				InputStream stream) {
+	@Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_OCTET_STREAM})
+	public Response putResource(@PathParam("resourceURL") String resourceURL, InputStream stream) {
 		// String resourceURL = "ewoud/test1.esdl";
+		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		XMLResourceImpl resource = new XMLResourceImpl();
 		try {
 			log.info("Reading contents of /" + resourceURL);
 			resource.load(stream, null);
 			log.info("Done reading contents of /" + resourceURL);
 			EObject rootEObject = resource.getContents().get(0);
-			CDOCommitInfo commitInfo = cdoManager.storeResource("/" + resourceURL, rootEObject);
-			
-			return Response.ok().build();
+			CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, "/" + resourceURL, rootEObject);
+			long timeStamp = commitInfo.getTimeStamp();
+			return Response.ok().lastModified(new Date(timeStamp)).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
 			e.printStackTrace();
@@ -124,7 +134,13 @@ public class CDOServerResource {
 	@Path("/resource/{resourceURL:.+}")
 	public Response head(@PathParam("resourceURL") String resourceURL) {
 		log.info("getResource() ResourceURL: " + resourceURL);
-		boolean resourceExists = cdoManager.existResource("/" + resourceURL);
+		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		boolean resourceExists = false;
+		try {
+			resourceExists = cdoManager.existResource(userInfo, "/" + resourceURL);
+		} catch (PermissionDeniedException e) {
+			return Response.serverError().status(Status.FORBIDDEN).build();
+		}
 		if (resourceExists) {
 			ResourceMetadata resourceMetaData = cdoManager.getResourceMetaData(resourceURL);
 			return Response.ok().lastModified(new Date(resourceMetaData.getTimeStamp())).build();
@@ -137,17 +153,17 @@ public class CDOServerResource {
 	@Path("/store")
 	@Produces(MediaType.TEXT_PLAIN)
 	public Response storeEDSL() {
-
+		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		EnergySystem es = EsdlFactory.eINSTANCE.createEnergySystem();
 		es.setName("New ES");
 		es.setDescription("now = " + System.currentTimeMillis());
 
 		try {
-			cdoManager.storeResource("/ewoud/test1.esdl", es);
+			cdoManager.storeResource(userInfo, "/ewoud/test1.esdl", es);
 		} catch (Exception e) {
-			log.severe("Error storing file in CDO repository");
+			log.severe("Error storing file in CDO repository " + e.getMessage());
 			e.printStackTrace();
-			return Response.serverError().entity("Error storing file").build();
+			return Response.serverError().entity("Error storing resource " + e.getMessage()).build();
 		}
 
 		return Response.accepted("Success").build();
@@ -164,9 +180,15 @@ public class CDOServerResource {
 //		log.info("Subject: " + callerPrincipal.getSubject());
 //		log.info("Claim names: " + callerPrincipal.getClaimNames());
 //		log.info("Roles: " + callerPrincipal.getClaim("roles"));
-		
-		ArrayList<String> resources = cdoManager.listResources();
-		return Response.ok(resources).build();
+		IdToken token = PropagationHelper.getIdToken();
+		UserInfo userInfo = AccessController.userInfoFromToken(token);
+		if (userInfo != null) {
+			log.info("List resources request by: " + userInfo);
+			ArrayList<String> resources = cdoManager.listResources(userInfo.getGroups());
+			return Response.ok(resources).build();
+		} else {
+			return Response.serverError().status(Status.FORBIDDEN).build();
+		}
 	}
 	@GET
 	@Path("/listpath/{path}")

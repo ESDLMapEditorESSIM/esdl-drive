@@ -27,6 +27,7 @@ public class BrowserNode {
 	private String path;
 	private List<BrowserNode> children = new ArrayList<>();
 	private boolean hasSubNodes = false;
+	private boolean writable;
 
 	public BrowserNode(String name, String path) {
 		this.name = name;
@@ -37,7 +38,7 @@ public class BrowserNode {
 	@Override
 	public String toString() {
 		return "BrowserNode [name=" + name + ", type=" + type + ", path=" + path + ", children=" + children
-				+ ", hasSubNodes=" + hasSubNodes + "]";
+				+ ", hasSubNodes=" + hasSubNodes + ", writable=" + writable + "]";
 	}
 
 	public String getName() {
@@ -71,5 +72,13 @@ public class BrowserNode {
 
 	public void setHasSubNodes(boolean hasSubNodes) {
 		this.hasSubNodes = hasSubNodes;
+	}
+
+	public void setWritable(boolean writable) {
+		this.writable = writable;
+	}
+
+	public boolean isWritable() {
+		return writable;
 	}
 }

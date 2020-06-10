@@ -18,30 +18,39 @@
 <!--         <feature>mpJwt-1.1</feature> -->
     </featureManager>
 
+	<httpAccessLogging id="accessLogging"/>
     <httpEndpoint id="defaultHttpEndpoint"
                   httpPort="9080"
-                  httpsPort="9443"/>
+                  httpsPort="9443" accessLoggingRef="accessLogging"/>
 
     <webApplication location="${project.name}.war" contextRoot="/">
         <classloader apiTypeVisibility="+third-party" />
+<!--         <application-bnd> -->
+<!--         	<security-role name="cdo_security"> -->
+<!--         		<group name="cdo_read" access-id="group:https://idm.hesi.energy/auth/realms/esdl-mapeditor/cdo_read"/> -->
+<!--         	</security-role> -->
+<!--         </application-bnd> -->
     </webApplication>
 
     
-    <openidConnectClient id="cdoMondaine"
+    <openidConnectClient id="cdoMondaine" 
+    	audiences="cdo-mondaine,esdl-mapeditor"
+    	tokenReuse="true" 
 	    clientId="cdo-mondaine"
 	    clientSecret="972d10db-26d4-492b-83ce-c29f05689019"
 	    discoveryEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/.well-known/openid-configuration"
 	    signatureAlgorithm="RS256"
 	    scope="openid profile email groups user_group microprofile-jwt"
-	    userNameAttribute="email"
 	    userIdentifier="email"
-	    userIdentityToCreateSubject="email" 
-    	groupNameAttribute="groups"
     	groupIdentifier="groups"
     	userInfoEndpointEnabled="true"
+    	inboundPropagation="supported"
     	>
 	</openidConnectClient>
-	
+
+<!-- 	    userNameAttribute="email" -->
+<!-- 	    userIdentityToCreateSubject="email"  -->
+<!--     	groupNameAttribute="groups" -->
 <!-- 	authFilterRef="dataUrl" -->
 	
 <!-- 	<jwtSso issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"  setCookieSecureFlag="false"/>             -->
@@ -62,7 +71,7 @@
 		/>
     -->
     <authFilter id="dataUrl">
-         <requestUrl id="requestUrl" urlPattern="/*" matchType="contains"/>
+         <requestUrl id="requestUrl" urlPattern="/store/*" matchType="contains"/>
 	</authFilter>
 
     <!-- This is the keystore that will be used by SSL and by JWT.  -->

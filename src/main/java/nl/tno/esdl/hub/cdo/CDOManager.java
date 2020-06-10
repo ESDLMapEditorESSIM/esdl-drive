@@ -12,8 +12,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -100,15 +102,20 @@ public class CDOManager {
 	}
 
 
-	public CDOCommitInfo storeResource(String resourceName, EObject rootObject)
-			throws ConcurrentAccessException, CommitException {
-		log.info("Starting storeResource transaction");
-
+	public CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, EObject rootObject)
+			throws ConcurrentAccessException, CommitException, PermissionDeniedException {
+		log.info("Starting storeResource transaction " + resourceName);
+		configuration.setUserID(userInfo.getUserName());
 		// Open session
 		CDOSession session = configuration.openNet4jSession();
 
 		// Open transaction
 		CDOTransaction transaction = session.openTransaction();
+		
+		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getPath() + " is not writable by " + userInfo.getUserName());
+		}
 
 		// Get or create resource
 		CDOResource resource = transaction.getOrCreateResource(resourceName); // $NON-NLS-1$
@@ -138,15 +145,20 @@ public class CDOManager {
 	 * @return
 	 * @throws IOException
 	 */
-	public ResourceResult getResource(String resourceName) throws Exception {
+	public ResourceResult getResource(UserInfo userInfo, String resourceName) throws Exception {
 		log.info("Starting getResource transaction");
 
+		configuration.setUserID(userInfo.getUserName());
 		// Open session
 		CDOSession session = configuration.openNet4jSession();
-
 		// create view
 		CDOView view = session.openView();
 
+		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
+		}
+		
 		try {
 			// Get or create resource
 			CDOResource resource = view.getResource(resourceName); // $NON-NLS-1$
@@ -188,7 +200,7 @@ public class CDOManager {
 		return resourceAsString;
 	}
 
-	public boolean existResource(String resourceURL) {
+	public boolean existResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException {
 		log.info("Starting existResource transaction");
 
 		// Open session
@@ -197,6 +209,11 @@ public class CDOManager {
 		// create view
 		CDOView view = session.openView();
 
+		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
+		}
+		
 		boolean hasResource = view.hasResource(resourceURL);
 
 		// clean up
@@ -225,6 +242,8 @@ public class CDOManager {
 		 * // clean up view.close();
 		 */		
 
+		
+		// TODO add accesscontrol
 		CDOTransaction transaction = session.openTransaction();
 		CDOResource resource2 = transaction.getResource(resourceURL);
 		log.info("Resource.getTimeStamp() = " + resource2.getTimeStamp());
@@ -259,26 +278,28 @@ public class CDOManager {
 		return list;
 	}
 
-	public ArrayList<String> listResources() {
+	public ArrayList<String> listResources(List<String> accessGroups) {
 		CDOSession session = configuration.openNet4jSession();
 		CDOTransaction transaction = session.openTransaction();
 		CDOResourceNode[] elements = transaction.getElements();
 		ArrayList<String> list = new ArrayList<String>();
 		EList<CDOResourceNode> resourceNodes = ECollections.asEList(elements);
-		createResourceList(resourceNodes, list);
+		createResourceList(resourceNodes, list, accessGroups);
 		transaction.close();
 		session.close();
 		return list;
 	}
 
-	private void createResourceList(EList<CDOResourceNode> nodes, ArrayList<String> list) {
+	private void createResourceList(EList<CDOResourceNode> nodes, ArrayList<String> list, List<String> accessGroups) {
 		for (CDOResourceNode cdoResourceNode : nodes) {
 			log.info(cdoResourceNode.eClass().getName() + ": " + cdoResourceNode.getPath());
-			list.add(cdoResourceNode.getPath());
-			if (cdoResourceNode instanceof CDOResourceFolder) {
-				CDOResourceFolder cdoResourceFolder = (CDOResourceFolder) cdoResourceNode;
-				EList<CDOResourceNode> subNodes = cdoResourceFolder.getNodes();
-				createResourceList(subNodes, list);
+			if (AccessController.canAccess(cdoResourceNode.getPath(), accessGroups)) {
+				list.add(cdoResourceNode.getPath());
+				if (cdoResourceNode instanceof CDOResourceFolder) {
+					CDOResourceFolder cdoResourceFolder = (CDOResourceFolder) cdoResourceNode;
+					EList<CDOResourceNode> subNodes = cdoResourceFolder.getNodes();
+					createResourceList(subNodes, list, accessGroups);
+				}
 			}
 		}
 	}
@@ -350,11 +371,11 @@ public class CDOManager {
 	}
 
 
-	public List<BrowserNode> getFolderContents(String path) {
+	public List<BrowserNode> getFolderContents(UserInfo userInfo, String path) {
 		CDOSession session = configuration.openNet4jSession();
 		CDOTransaction transaction = session.openTransaction();
 		EList<CDOResourceNode> nodes;
-		if (path.equals("/") || path.equals("")) {
+		if (path.equals("/") || path.equals("") || path.equals("j1_1")) {
 			nodes = transaction.getRootResource().getContents()
 					.stream().filter(CDOResourceNode.class::isInstance)
 					.map(CDOResourceNode.class::cast)
@@ -365,30 +386,39 @@ public class CDOManager {
 		}
 		ArrayList<BrowserNode> list = new ArrayList<>();
 		for (CDOResourceNode node : nodes) {
-			BrowserNode browserNode = new BrowserNode(node.getName(), node.getPath());
-			if (node instanceof CDOResourceFolder) {
-				CDOResourceFolder cdoResourceFolder = (CDOResourceFolder) node;
-				browserNode.setType(BrowserNodeType.FOLDER);
-				if (cdoResourceFolder.getNodes().size() > 0) {
-					browserNode.setHasSubNodes(true);
+			HubPermission permission = AccessController.getPermission(node.getPath(), userInfo.getGroups());
+			if (permission.isAccessible()) {
+				BrowserNode browserNode = new BrowserNode(node.getName(), node.getPath());
+				browserNode.setWritable(permission.isWritable());
+				if (node instanceof CDOResourceFolder) {
+					CDOResourceFolder cdoResourceFolder = (CDOResourceFolder) node;
+					browserNode.setType(BrowserNodeType.FOLDER);
+					if (cdoResourceFolder.getNodes().size() > 0) {
+						browserNode.setHasSubNodes(true);
+					}
+				} else if (node instanceof CDOBinaryResource) {
+					browserNode.setType(BrowserNodeType.BINARY);
+				} else if (node instanceof CDOTextResource) {
+					browserNode.setType(BrowserNodeType.TEXT);
+				} else if (node instanceof CDOResource) {
+					browserNode.setType(BrowserNodeType.ESDL_FILE);				
 				}
-			} else if (node instanceof CDOBinaryResource) {
-				browserNode.setType(BrowserNodeType.BINARY);
-			} else if (node instanceof CDOTextResource) {
-				browserNode.setType(BrowserNodeType.TEXT);
-			} else if (node instanceof CDOResource) {
-				browserNode.setType(BrowserNodeType.ESDL_FILE);				
+				list.add(browserNode);
 			}
-			list.add(browserNode);
 			
 		}
-		transaction.close();
 		session.close();
 		return list;
 	}
 
 
-	public Map<String, Object> getContentSummary(String fileName) {
+	public Map<String, Object> getContentSummary(UserInfo userInfo, String fileName) throws PermissionDeniedException {
+		
+		HubPermission permission = AccessController.getPermission(fileName, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
+		}
+		
 		HashMap<String, Object> map = new HashMap<>();
 		if (!fileName.endsWith(".esdl")) return map;
 		
@@ -434,7 +464,11 @@ public class CDOManager {
 	}
 	
 	
-	public String createFolder(String path) throws ConcurrentAccessException, CommitException {
+	public String createFolder(UserInfo userInfo, String path) throws ConcurrentAccessException, CommitException, PermissionDeniedException {
+		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
+		}
 		CDOSession session = configuration.openNet4jSession();
 		CDOTransaction transaction = session.openTransaction();
 		CDOResourceFolder resourceFolder = transaction.getOrCreateResourceFolder(path);
@@ -444,7 +478,11 @@ public class CDOManager {
 		return folderName;
 	}
 	
-	public String rename(String path, String newName) throws ConcurrentAccessException, CommitException, CDOResourceNodeNotFoundException {
+	public String rename(UserInfo userInfo, String path, String newName) throws ConcurrentAccessException, CommitException, CDOResourceNodeNotFoundException, PermissionDeniedException {
+		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
+		}
 		CDOSession session = configuration.openNet4jSession();
 		CDOTransaction transaction = session.openTransaction();
 		try {
@@ -460,7 +498,11 @@ public class CDOManager {
 		}
 	}
 	
-	public void deleteResource(String path) throws IOException, CDOResourceNodeNotFoundException, ConcurrentAccessException, CommitException {
+	public void deleteResource(UserInfo userInfo, String path) throws IOException, CDOResourceNodeNotFoundException, ConcurrentAccessException, CommitException, PermissionDeniedException {
+		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
+		}
 		CDOSession session = configuration.openNet4jSession();
 		CDOTransaction transaction = session.openTransaction();
 		try {
@@ -479,23 +521,113 @@ public class CDOManager {
 	}
 
 
-	public String moveNode(String path, String newParentFolder) throws IOException, ConcurrentAccessException, CommitException {
+	public String moveNode(UserInfo userInfo, String path, String newParentFolder) throws IOException, ConcurrentAccessException, CommitException, PermissionDeniedException {
+		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		if (!permission.isWritable()) {
+			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
+		}
 		CDOSession session = configuration.openNet4jSession();
 		CDOTransaction transaction = session.openTransaction();
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
-			CDOResourceFolder newFolder = transaction.getResourceFolder(newParentFolder);
-			resourceNode.setFolder(newFolder);
-			resourceNode.setPath(newParentFolder);
+			String fileName = resourceNode.getName();
+			//CDOResourceFolder newFolder = transaction.getResourceFolder(newParentFolder);
+			//resourceNode.setFolder(newFolder);
+			resourceNode.setPath(newParentFolder + "/" + fileName);
+			System.out.println("New path: " + resourceNode.getPath()); 
 			transaction.commit();
 			String newPath =  resourceNode.getPath();
 			session.close();
 			return newPath;
 		} catch (CDOResourceNodeNotFoundException e) {
+			e.printStackTrace();
 			session.close();
 			throw e;
 		}
 				
+	}
+	
+	private String createUniqueName(CDOTransaction transaction, String name, String newFolder) {
+		CDOResourceFolder resourceFolder = transaction.getResourceFolder(newFolder);
+		EList<CDOResourceNode> nodes = resourceFolder.getNodes();
+		boolean nameConflict = false;
+		Set<String> names = new HashSet<>();
+		// iterate through files in this folder and check if name exist, ifso change name, otherwise not
+		for (CDOResourceNode node : nodes) {
+			if (node.getName().equals(name)) {
+				nameConflict = true;
+			}
+			names.add(node.getName());
+		}
+		if (nameConflict) {
+			String renamed = name + "-copy";
+	        for (int i = 0; i < Integer.MAX_VALUE; i++) {
+	          String newName = renamed;
+	          if (i != 0) {
+	        	  newName += i;
+	          }
+	          if (!names.contains(newName)) {
+	            return newName;
+	          }
+	        }
+		}
+		return name;
+	}
+
+
+	public String copyNode(UserInfo userInfo, String path, String newParentFolder) throws ConcurrentAccessException, CommitException, PermissionDeniedException {
+		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		HubPermission destinationPermission = AccessController.getPermission(newParentFolder, userInfo.getGroups());
+		if (!permission.isAccessible() && !destinationPermission.isWritable()) {
+			throw new PermissionDeniedException(destinationPermission.getPath() + " is not accessible or writable by " + userInfo.getUserName());
+		}
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		try {
+			String newPath = null;
+			CDOResourceNode resourceNode = transaction.getResourceNode(path);
+			if (resourceNode instanceof CDOResourceFolder) {
+				// TODO
+			} else { // CDOResource or CDOFileResource
+				String fileName = resourceNode.getName();
+				//CDOResourceFolder newFolder = transaction.getResourceFolder(newParentFolder);
+				//resourceNode.setFolder(newFolder);
+				CDOResource resource = transaction.getResource(path);
+				EObject copy = EcoreUtil.copy(resource.getContents().get(0));
+				String uniqueName = createUniqueName(transaction, fileName, newParentFolder);
+				CDOResource copyResource = transaction.createResource(newParentFolder + "/" + uniqueName);
+				copyResource.getContents().add(copy);
+				System.out.println("Copy: New path: " + copyResource.getPath());
+				transaction.commit();
+				newPath = copyResource.getPath();
+			}
+			
+			session.close();
+			return newPath;
+		} catch (CDOResourceNodeNotFoundException e) {
+			e.printStackTrace();
+			session.close();
+			throw e;
+		}
+		
+	}
+	
+	public void ensureUserFoldersPresent(UserInfo userInfo) {
+		CDOSession session = configuration.openNet4jSession();
+		CDOTransaction transaction = session.openTransaction();
+		log.info("Ensuring initial groups for user " + userInfo.getUserName());
+		for (String group: userInfo.getGroups()) {
+			transaction.getOrCreateResourceFolder(group);
+		}
+		
+		try {
+			transaction.commit();
+		} catch (ConcurrentAccessException e) {
+			e.printStackTrace();
+		} catch (CommitException e) {
+			e.printStackTrace();
+		}
+		session.close();
 	}
 
 }
