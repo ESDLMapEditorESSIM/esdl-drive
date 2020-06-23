@@ -20,9 +20,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
-import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
-import org.eclipse.emf.cdo.util.CommitException;
-import org.eclipse.emf.cdo.util.ConcurrentAccessException;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
@@ -69,9 +66,12 @@ public class CDOServerResource {
 			String xmlString = cdoManager.convertToXMLString(resourceResult.getCDOResource());
 			//log.info("Retrieved: " + xmlString);
 			if (xmlString == null) {
+				resourceResult.close();
 				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
 			}
-			return Response.ok(xmlString).lastModified(resourceResult.getLastModified()).build();
+			Date lastModified = resourceResult.getLastModified();
+			resourceResult.close();
+			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
 			e.printStackTrace();
@@ -142,7 +142,7 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).build();
 		}
 		if (resourceExists) {
-			ResourceMetadata resourceMetaData = cdoManager.getResourceMetaData(resourceURL);
+			ResourceMetadata resourceMetaData = cdoManager.getResourceMetaData(userInfo, resourceURL);
 			return Response.ok().lastModified(new Date(resourceMetaData.getTimeStamp())).build();
 		} else {
 			return Response.status(Status.NOT_FOUND).build();
@@ -184,7 +184,7 @@ public class CDOServerResource {
 		UserInfo userInfo = AccessController.userInfoFromToken(token);
 		if (userInfo != null) {
 			log.info("List resources request by: " + userInfo);
-			ArrayList<String> resources = cdoManager.listResources(userInfo.getGroups());
+			ArrayList<String> resources = cdoManager.listResources(userInfo);
 			return Response.ok(resources).build();
 		} else {
 			return Response.serverError().status(Status.FORBIDDEN).build();
@@ -195,8 +195,14 @@ public class CDOServerResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response listResourcesByPath(@PathParam("path") String path) {
 		log.info("Path=" + path);
-		ArrayList<String> resources = cdoManager.listPath(path);
-		return Response.ok(resources).build();
+		IdToken token = PropagationHelper.getIdToken();
+		UserInfo userInfo = AccessController.userInfoFromToken(token);
+		if (userInfo != null) {
+			ArrayList<String> resources = cdoManager.listPath(userInfo, path);
+			return Response.ok(resources).build();
+		} else {
+			return Response.serverError().status(Status.FORBIDDEN).build();
+		}
 	}
 
 }

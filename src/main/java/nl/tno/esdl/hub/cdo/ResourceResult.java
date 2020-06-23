@@ -30,9 +30,8 @@ public class ResourceResult implements Closeable {
 
 	@Override
 	public void close() throws IOException {
-		log.info("Closing view and session of " + cdoResource.getPath());
-		view.close();
-		view.getSession().close();
+		//log.info("Closing view of " + cdoResource.getPath());
+		//view.close(); // not necessary in with new cached sessions
 	}
 
 

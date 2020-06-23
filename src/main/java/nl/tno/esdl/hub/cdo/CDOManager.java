@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -34,6 +35,7 @@ import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
 import org.eclipse.emf.cdo.eresource.CDOResourceNode;
 import org.eclipse.emf.cdo.eresource.CDOTextResource;
+import org.eclipse.emf.cdo.net4j.CDONet4jSession;
 import org.eclipse.emf.cdo.net4j.CDONet4jSessionConfiguration;
 import org.eclipse.emf.cdo.net4j.CDONet4jUtil;
 import org.eclipse.emf.cdo.session.CDOSession;
@@ -91,6 +93,8 @@ public class CDOManager {
 	private CDONet4jSessionConfiguration configuration;
 	private IConnector connector;
 	private IManagedContainer container;
+	
+	private ConcurrentHashMap<String, SessionDetails> sessionMap = new ConcurrentHashMap<String, SessionDetails>();
 
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
 
@@ -99,16 +103,38 @@ public class CDOManager {
 		cdoRepositoryName = ConfigProvider.getConfig().getValue("cdo.repository.name", String.class);
 		log.info("CDO@:" + cdoServerHostName + "/" + cdoRepositoryName);
 		setUpCDO();
+		new SessionDetailsManager(sessionMap);
+	}
+	
+	public CDONet4jSession getSession(UserInfo userInfo) {
+		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
+		if (sessionDetails == null) {
+			configuration.setUserID(userInfo.getUserName());
+			CDONet4jSession net4jSession = configuration.openNet4jSession();
+			sessionDetails = new SessionDetails(net4jSession, userInfo);
+			sessionMap.put(userInfo.getUserName(), sessionDetails);
+			log.info("Creating new CDO session for " + userInfo.getUserName());
+			ensureUserFoldersPresent(userInfo);
+			return net4jSession;
+		} else {
+			CDONet4jSession cdoSession = sessionDetails.getCDOSession();
+			if (cdoSession.isClosed()) {
+				log.warning("Cached CDO session is closed, creating new one for " + userInfo.getUserName());
+				sessionMap.remove(userInfo.getUserName());
+				return getSession(userInfo); // return a new session
+			} else {
+				log.info("Retrieving cached session for " + userInfo.getUserName());
+				return cdoSession;
+			}
+		}
 	}
 
 
 	public CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, EObject rootObject)
 			throws ConcurrentAccessException, CommitException, PermissionDeniedException {
 		log.info("Starting storeResource transaction " + resourceName);
-		configuration.setUserID(userInfo.getUserName());
 		// Open session
-		CDOSession session = configuration.openNet4jSession();
-
+		CDONet4jSession session = getSession(userInfo);
 		// Open transaction
 		CDOTransaction transaction = session.openTransaction();
 		
@@ -133,8 +159,6 @@ public class CDOManager {
 		// Cleanup
 		log.info("CommitInfo: " + commitInfo);
 		log.info("Ending storeResource transaction");
-		transaction.close();
-		session.close();
 
 		return commitInfo;
 	}
@@ -147,10 +171,8 @@ public class CDOManager {
 	 */
 	public ResourceResult getResource(UserInfo userInfo, String resourceName) throws Exception {
 		log.info("Starting getResource transaction");
-
-		configuration.setUserID(userInfo.getUserName());
-		// Open session
-		CDOSession session = configuration.openNet4jSession();
+		
+		CDONet4jSession session = getSession(userInfo);
 		// create view
 		CDOView view = session.openView();
 
@@ -203,9 +225,7 @@ public class CDOManager {
 	public boolean existResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException {
 		log.info("Starting existResource transaction");
 
-		// Open session
-		CDOSession session = configuration.openNet4jSession();
-
+		CDONet4jSession session = getSession(userInfo);
 		// create view
 		CDOView view = session.openView();
 
@@ -218,15 +238,14 @@ public class CDOManager {
 
 		// clean up
 		view.close();
-		session.close();
 
 		return hasResource;
 	}
 
-	public ResourceMetadata getResourceMetaData(String resourceURL) throws CDOResourceNodeNotFoundException {
+	public ResourceMetadata getResourceMetaData(UserInfo userInfo, String resourceURL) throws CDOResourceNodeNotFoundException {
 		log.info("Get metadata for " + resourceURL);
 		// Open session
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 
 		/*
 		 * // create view CDOView view = session.openView();
@@ -249,15 +268,13 @@ public class CDOManager {
 		log.info("Resource.getTimeStamp() = " + resource2.getTimeStamp());
 		long lastUpdateTime = transaction.getLastUpdateTime();
 		log.info("Transaction.getLastUpdateTime() = " + lastUpdateTime);
-		transaction.close();
 		ResourceMetadata resourceMetadata = new ResourceMetadata(lastUpdateTime);
-		session.close();
 		return resourceMetadata;
 
 	}
 
-	public ArrayList<String> listPath(String path) {
-		CDOSession session = configuration.openNet4jSession();
+	public ArrayList<String> listPath(UserInfo userInfo, String path) {
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		CDOResourceFolder resourceFolder = transaction.getResourceFolder(path);
 		EList<CDOResourceNode> nodes = resourceFolder.getNodes();
@@ -273,20 +290,16 @@ public class CDOManager {
 		}
 		//EList<CDOResourceNode> resourceNodes = ECollections.asEList(elements);
 		//resourceNodes.add(nodes);
-		transaction.close();
-		session.close();
 		return list;
 	}
 
-	public ArrayList<String> listResources(List<String> accessGroups) {
-		CDOSession session = configuration.openNet4jSession();
+	public ArrayList<String> listResources(UserInfo userInfo) {
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		CDOResourceNode[] elements = transaction.getElements();
 		ArrayList<String> list = new ArrayList<String>();
 		EList<CDOResourceNode> resourceNodes = ECollections.asEList(elements);
-		createResourceList(resourceNodes, list, accessGroups);
-		transaction.close();
-		session.close();
+		createResourceList(resourceNodes, list, userInfo.getGroups());
 		return list;
 	}
 
@@ -329,6 +342,8 @@ public class CDOManager {
 			configuration = CDONet4jUtil.createNet4jSessionConfiguration();
 			configuration.setConnector(connector);
 			configuration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
+			log.info("Signal timeout" + configuration.getSignalTimeout());
+			configuration.setSignalTimeout(60000);
 			configuration.addListener(new IListener()
 		    {
 		      @Override
@@ -372,7 +387,8 @@ public class CDOManager {
 
 
 	public List<BrowserNode> getFolderContents(UserInfo userInfo, String path) {
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
+
 		CDOTransaction transaction = session.openTransaction();
 		EList<CDOResourceNode> nodes;
 		if (path.equals("/") || path.equals("") || path.equals("j1_1")) {
@@ -407,7 +423,6 @@ public class CDOManager {
 			}
 			
 		}
-		session.close();
 		return list;
 	}
 
@@ -424,7 +439,7 @@ public class CDOManager {
 		
 		map.put("type", "esdl");
 		map.put("path", fileName);
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		CDOResource resource = transaction.getResource(fileName);
 		if (resource == null) {
@@ -458,8 +473,6 @@ public class CDOManager {
 				map.put(feature.getName(), es.eGet(feature));
 			}
 		}				
-		transaction.close();
-		session.close();
 		return map;
 	}
 	
@@ -469,12 +482,11 @@ public class CDOManager {
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
 		}
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		CDOResourceFolder resourceFolder = transaction.getOrCreateResourceFolder(path);
 		String folderName = resourceFolder.getPath();
 		transaction.commit();
-		session.close();
 		return folderName;
 	}
 	
@@ -483,17 +495,15 @@ public class CDOManager {
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
 		}
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
 			resourceNode.setName(newName);
 			String pathName = resourceNode.getPath();
 			transaction.commit();
-			session.close();
 			return pathName;
 		} catch (CDOResourceNodeNotFoundException e) {
-			session.close();
 			throw e;
 		}
 	}
@@ -503,18 +513,15 @@ public class CDOManager {
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
 		}
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
 			resourceNode.delete(null);
 			transaction.commit();
-			session.close();
 		} catch (CDOResourceNodeNotFoundException e) {
-			session.close();
 			throw e;
 		} catch (IOException e) {
-			session.close();
 			throw e;
 		}
 		
@@ -526,7 +533,7 @@ public class CDOManager {
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
 		}
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
@@ -537,11 +544,9 @@ public class CDOManager {
 			System.out.println("New path: " + resourceNode.getPath()); 
 			transaction.commit();
 			String newPath =  resourceNode.getPath();
-			session.close();
 			return newPath;
 		} catch (CDOResourceNodeNotFoundException e) {
 			e.printStackTrace();
-			session.close();
 			throw e;
 		}
 				
@@ -581,7 +586,7 @@ public class CDOManager {
 		if (!permission.isAccessible() && !destinationPermission.isWritable()) {
 			throw new PermissionDeniedException(destinationPermission.getPath() + " is not accessible or writable by " + userInfo.getUserName());
 		}
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		try {
 			String newPath = null;
@@ -602,18 +607,20 @@ public class CDOManager {
 				newPath = copyResource.getPath();
 			}
 			
-			session.close();
 			return newPath;
 		} catch (CDOResourceNodeNotFoundException e) {
 			e.printStackTrace();
-			session.close();
 			throw e;
 		}
 		
 	}
 	
+	/**
+	 * Checks if the folders of this user are available in the repository. If not they are created.
+	 * @param userInfo
+	 */
 	public void ensureUserFoldersPresent(UserInfo userInfo) {
-		CDOSession session = configuration.openNet4jSession();
+		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		log.info("Ensuring initial groups for user " + userInfo.getUserName());
 		for (String group: userInfo.getGroups()) {
@@ -627,7 +634,6 @@ public class CDOManager {
 		} catch (CommitException e) {
 			e.printStackTrace();
 		}
-		session.close();
 	}
 
 }
