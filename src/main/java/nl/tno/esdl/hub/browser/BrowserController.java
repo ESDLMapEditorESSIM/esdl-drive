@@ -120,6 +120,8 @@ public class BrowserController {
 						contentBuilder.add(entry.getKey(), (String)entry.getValue());
 					} else if (entry.getValue() instanceof Number) {
 						contentBuilder.add(entry.getKey(), String.valueOf(entry.getValue()));
+					} else if (entry.getValue() instanceof Boolean) {
+						contentBuilder.add(entry.getKey(), (Boolean)entry.getValue());
 					} else {
 						log.info("Ignoring " + entry);
 					}
@@ -240,6 +242,7 @@ public class BrowserController {
 //        	System.out.println("Groups: " + groups);
 //        }
         
+        System.out.println("Browser returning (" + op +"): " + jsonObject);
         return Response.accepted(jsonObject).build();
     }
     

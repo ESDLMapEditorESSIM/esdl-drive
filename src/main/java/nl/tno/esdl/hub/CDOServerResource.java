@@ -35,6 +35,7 @@ import esdl.EsdlFactory;
 import esdl.EsdlPackage;
 import nl.tno.esdl.hub.cdo.AccessController;
 import nl.tno.esdl.hub.cdo.CDOManager;
+import nl.tno.esdl.hub.cdo.HubPermission;
 import nl.tno.esdl.hub.cdo.PermissionDeniedException;
 import nl.tno.esdl.hub.cdo.ResourceMetadata;
 import nl.tno.esdl.hub.cdo.ResourceResult;
@@ -60,9 +61,16 @@ public class CDOServerResource {
 	@Produces(MediaType.APPLICATION_XML)
 	public Response getResource(@PathParam("resourceURL") String resourceURL) {
 		// String resourceURL = "ewoud/test1.esdl";
+		if (!resourceURL.startsWith("/")) {
+			resourceURL = "/" + resourceURL;
+		}
 		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		if (!permission.isAccessible()) {
+			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
+		}
 		log.info("getResource() ResourceURL: " + resourceURL);
-		try (ResourceResult resourceResult = cdoManager.getResource(userInfo, "/" + resourceURL)) {
+		try (ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL)) {
 			String xmlString = cdoManager.convertToXMLString(resourceResult.getCDOResource());
 			//log.info("Retrieved: " + xmlString);
 			if (xmlString == null) {
@@ -94,27 +102,39 @@ public class CDOServerResource {
 	@Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_OCTET_STREAM})
 	public Response putResource(@PathParam("resourceURL") String resourceURL, InputStream stream) {
 		// String resourceURL = "ewoud/test1.esdl";
+		if (!resourceURL.startsWith("/")) {
+			resourceURL = "/" + resourceURL;
+		}
 		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
-		XMLResourceImpl resource = new XMLResourceImpl();
-		try {
-			log.info("Reading contents of /" + resourceURL);
-			resource.load(stream, null);
-			log.info("Done reading contents of /" + resourceURL);
-			EObject rootEObject = resource.getContents().get(0);
-			CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, "/" + resourceURL, rootEObject);
-			long timeStamp = commitInfo.getTimeStamp();
-			return Response.ok().lastModified(new Date(timeStamp)).build();
-		} catch (Exception e) {
-			log.severe("Error: " + e);
-			e.printStackTrace();
-			if (e instanceof PackageNotFoundException) {
-				return Response.serverError().entity(
-						"Input is not of type ESDL: XML namespaceURI is not defined or is (xmlns:esdl) is different from "
-								+ EsdlPackage.eNS_URI)
+		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		System.out.println("putResource: " + resourceURL);
+		if (permission.isWritable()) {
+			XMLResourceImpl resource = new XMLResourceImpl();
+			try {
+				System.out.println("Reading contents of " + resourceURL);
+				resource.load(stream, null);
+				System.out.println("Done reading contents of " + resourceURL);
+				EObject rootEObject = resource.getContents().get(0);
+				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject);
+				System.out.println("Saved " + resourceURL + ", commitInfo: " + commitInfo);
+				long timeStamp = commitInfo.getTimeStamp();
+				return Response.ok().lastModified(new Date(timeStamp)).build();
+			} catch (Exception e) {
+				log.severe("Error: " + e);
+				e.printStackTrace();
+				if (e instanceof PackageNotFoundException) {
+					return Response.serverError().entity(
+							"Input is not of type ESDL: XML namespaceURI is not defined or is (xmlns:esdl) is different from "
+									+ EsdlPackage.eNS_URI)
+							.type(MediaType.TEXT_PLAIN).build();
+				}
+				System.out.println("Error saving resource " + e.getMessage());
+				return Response.serverError().entity("Failed to store the resource " + resourceURL)
 						.type(MediaType.TEXT_PLAIN).build();
 			}
-			return Response.serverError().entity("Failed to store the resource " + resourceURL)
-					.type(MediaType.TEXT_PLAIN).build();
+		} else {
+			System.out.println("No write access to " + permission.getPath());
+			return Response.serverError().status(Status.FORBIDDEN).entity("Permission denied for " + resourceURL).build();
 		}
 	}
 
@@ -129,15 +149,22 @@ public class CDOServerResource {
 	 */
 	@Parameter(allowEmptyValue = false, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
 	@APIResponse(responseCode = "200", description = "Returns OK if the resource exists and is accessible by the user")
-	@APIResponse(responseCode = "403", description = "Returns not found if resource is not found")
+	@APIResponse(responseCode = "403", description = "Returns Not Found if resource is not found")
 	@HEAD
 	@Path("/resource/{resourceURL:.+}")
 	public Response head(@PathParam("resourceURL") String resourceURL) {
+		if (!resourceURL.startsWith("/")) {
+			resourceURL = "/" + resourceURL;
+		}
 		log.info("getResource() ResourceURL: " + resourceURL);
 		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		if (!permission.isAccessible()) {
+			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
+		}
 		boolean resourceExists = false;
 		try {
-			resourceExists = cdoManager.existResource(userInfo, "/" + resourceURL);
+			resourceExists = cdoManager.existResource(userInfo, resourceURL);
 		} catch (PermissionDeniedException e) {
 			return Response.serverError().status(Status.FORBIDDEN).build();
 		}
@@ -149,6 +176,8 @@ public class CDOServerResource {
 		}
 	}
 
+	
+	/*
 	@GET
 	@Path("/store")
 	@Produces(MediaType.TEXT_PLAIN)
@@ -168,6 +197,7 @@ public class CDOServerResource {
 
 		return Response.accepted("Success").build();
 	}
+	*/
 
 	@GET
 	@Path("/list")
@@ -190,6 +220,8 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).build();
 		}
 	}
+	
+	/*
 	@GET
 	@Path("/listpath/{path}")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -204,5 +236,5 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).build();
 		}
 	}
-
+	 */
 }

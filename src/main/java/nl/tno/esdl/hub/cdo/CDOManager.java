@@ -28,7 +28,6 @@ import javax.inject.Singleton;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
-import org.eclipse.emf.cdo.common.revision.CDORevision;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOBinaryResource;
 import org.eclipse.emf.cdo.eresource.CDOResource;
@@ -83,11 +82,11 @@ import nl.tno.esdl.hub.browser.BrowserNode.BrowserNodeType;
 public class CDOManager {
 
 	@Inject
-	@ConfigProperty(name = "cdo.repository.name" /* , defaultValue = "mondaine" */)
+	@ConfigProperty(name = "CDO_REPOSITORY_NAME" /* , defaultValue = "mondaine" */)
 	private String cdoRepositoryName;
 
 	@Inject
-	@ConfigProperty(name = "cdo.server.host" /* , defaultValue = "localhost:2036" */)
+	@ConfigProperty(name = "CDO_SERVER_HOST" /* , defaultValue = "localhost:2036" */)
 	private String cdoServerHostName;
 
 	private CDONet4jSessionConfiguration configuration;
@@ -99,9 +98,11 @@ public class CDOManager {
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
 
 	public CDOManager() {
-		cdoServerHostName = ConfigProvider.getConfig().getValue("cdo.server.host", String.class);
-		cdoRepositoryName = ConfigProvider.getConfig().getValue("cdo.repository.name", String.class);
-		log.info("CDO@:" + cdoServerHostName + "/" + cdoRepositoryName);
+		log.info("Injected config: CDO@:" + cdoServerHostName + "/" + cdoRepositoryName);
+		cdoServerHostName = ConfigProvider.getConfig().getValue("CDO_SERVER_HOST", String.class);
+		cdoRepositoryName = ConfigProvider.getConfig().getValue("CDO_REPOSITORY_NAME", String.class);
+		log.info("Config from ConfigProvider: CDO@:" + cdoServerHostName + "/" + cdoRepositoryName);
+		log.info("From environment: " + System.getenv("CDO_SERVER_HOST"));
 		setUpCDO();
 		new SessionDetailsManager(sessionMap);
 	}
@@ -178,7 +179,7 @@ public class CDOManager {
 
 		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
 		if (!permission.isWritable()) {
-			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
+			throw new PermissionDeniedException(resourceName + " is not accessible by " + userInfo.getUserName());
 		}
 		
 		try {
@@ -427,30 +428,41 @@ public class CDOManager {
 	}
 
 
-	public Map<String, Object> getContentSummary(UserInfo userInfo, String fileName) throws PermissionDeniedException {
+	public Map<String, Object> getContentSummary(UserInfo userInfo, String fileName) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
 		
 		HubPermission permission = AccessController.getPermission(fileName, userInfo.getGroups());
-		if (!permission.isWritable()) {
+		if (!permission.isAccessible()) {
 			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
 		}
 		
 		HashMap<String, Object> map = new HashMap<>();
-		if (!fileName.endsWith(".esdl")) return map;
+		//if (!fileName.endsWith(".esdl")) return map;
 		
-		map.put("type", "esdl");
-		map.put("path", fileName);
 		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
-		CDOResource resource = transaction.getResource(fileName);
-		if (resource == null) {
-			
+		CDOResourceNode resourceNode = transaction.getResourceNode(fileName);
+		//CDOResource resource = transaction.getResource(fileName);
+		System.out.println("ResourceNode: " + resourceNode);
+
+		if (resourceNode == null) {
 			map.put("fileName", fileName);
 			map.put("content", fileName + " not found");
 			return map;
 		}
+
+		map.put("writable", permission.isWritable());
+		map.put("path", fileName);
+		if (resourceNode instanceof CDOResourceFolder || fileName.equals("/")) {
+			map.put("type", "folder");
+			return map;
+		}
+		
+		CDOResource resource = transaction.getResource(fileName);
+		System.out.println("Resource: " + resource);
+		map.put("type", resource.getExtension());
 		System.out.println("Retreiving " + fileName);
-		System.out.print("getting revisions");
-		resource.cdoPrefetch( CDORevision.DEPTH_INFINITE);
+		System.out.print("getting last 3 revisions");
+		resource.cdoPrefetch(3); //CDORevision.DEPTH_INFINITE);
 		System.out.println("done");
 //		resource.cdoHistory().triggerLoad();
 //		
@@ -461,10 +473,11 @@ public class CDOManager {
 //				e.printStackTrace();
 //			}
 //		}
+		
 		EnergySystem es = (EnergySystem) resource.getContents().get(0);
 		//System.out.println("ES name: " + es.getName());
 		map.put("fileName", resource.getName());
-		map.put("Revision version", resource.cdoRevision().getVersion());
+		map.put("Revision version ", resource.cdoRevision().getVersion());
 		map.put("Last saved", LocalDateTime.ofInstant(Instant.ofEpochMilli(resource.cdoRevision().getTimeStamp()), ZoneId.systemDefault()).toString());
 		
 		EList<EStructuralFeature> eAllStructuralFeatures = es.eClass().getEAllStructuralFeatures();

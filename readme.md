@@ -1,4 +1,45 @@
-# MicroProfile generated Application
+# Mondaine HUB
+
+## Introduction
+This project provides a REST interface for Eclipse CDO (Connected Data Objects) and can be integrated in the MapEditor.
+
+It uses Open Liberty as Java server runtime. It supports microprofile and openIdConnect out of the box.
+
+
+## Building
+
+To generate a jar that can be run in an Open Liberty server run:
+
+`mvn liberty:package`
+
+To build the docker container run:
+
+`docker build . -t mondaine-hub`
+
+
+To push it to the CI repo run:
+
+`docker tag mondaine-hub:latest ci.tno.nl:5432/esdl/mondaine-hub:latest`
+
+
+## Environmental variables
+The software can be configured using `microprofile.properties`, `server.env` and `server.xml` files, or using Environmental variables using the following properties:
+
+### CDO server host and port:
+`CDO_SERVER_HOST=localhost:2036`
+### Repository name at the CDO server
+`CDO_REPOSITORY_NAME=mondaine`
+
+
+
+
+
+
+
+
+
+
+# Liberty information:
 
 ## Introduction
 
@@ -25,7 +66,7 @@ unit and integration tests are run on pressing Enter in the command terminal; yo
 
 To launch the test page, open your browser at the following URL
 
-    http://localhost:8181/index.html
+    http://localhost:9080/index.html
 
 ## Specification examples
 

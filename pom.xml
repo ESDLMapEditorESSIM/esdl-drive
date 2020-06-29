@@ -9,13 +9,24 @@
 	<version>1.0-SNAPSHOT</version>
 	<packaging>war</packaging>
 	<properties>
-		<openliberty.maven.version>3.2</openliberty.maven.version>
+		<openliberty.maven.version>3.2.2</openliberty.maven.version>
 		<maven.compiler.target>1.8</maven.compiler.target>
 		<failOnMissingWebXml>false</failOnMissingWebXml>
 		<maven.compiler.source>1.8</maven.compiler.source>
 		<openliberty.version>20.0.0.4</openliberty.version>
 		<final.name>hub</final.name>
 	</properties>
+
+	<!-- the hesi snapshot repository updates ESDL after each push -->
+	<repositories>
+		<repository>
+			<id>hesi-snapshots</id>
+			<name>HESI snapshot artifactory</name>
+			<url>http://ci.hesi.energy:8081/artifactory/libs-snapshot-local</url>
+		</repository>
+	</repositories>
+
+	
 
 
 	<!-- <assemblyArtifact> -->
@@ -57,13 +68,13 @@
 		<dependency>
 			<groupId>org.eclipselabs</groupId>
 			<artifactId>cdo</artifactId>
-			<version>4.7.2</version>
+			<version>4.7.3-SNAPSHOT</version>
 			<type>pom</type>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipselabs</groupId>
 			<artifactId>net4j</artifactId>
-			<version>4.7.2</version>
+			<version>4.7.3-SNAPSHOT</version>
 			<type>pom</type>
 		</dependency>
 		<dependency>
@@ -106,11 +117,10 @@
 									<goal>install-feature</goal>
 									<goal>deploy</goal>
 									<goal>package</goal>
-									<goal>dev</goal>
 								</goals>
 								<configuration>
-									<serverStartTimeout>60</serverStartTimeout>
-									<verifyTimeout>61</verifyTimeout>
+<!-- 									<serverStartTimeout>60</serverStartTimeout> -->
+<!-- 									<verifyTimeout>61</verifyTimeout> -->
 	 								<outputDirectory>target/wlp-package</outputDirectory>
 								</configuration>
 							</execution>
