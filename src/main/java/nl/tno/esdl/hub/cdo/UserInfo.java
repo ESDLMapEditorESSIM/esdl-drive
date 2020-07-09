@@ -20,6 +20,8 @@ public class UserInfo {
 	@SuppressWarnings("unchecked")
 	public UserInfo(IdToken jwtToken) throws InvalidLoginInformationException {
 		try {
+			if (jwtToken == null)
+				throw new InvalidLoginInformationException("No Bearer token supplied");
 			this.userId = jwtToken.getSubject();
 			this.userName = (String)jwtToken.getClaim(USER_NAME_CLAIM);
 			this.fullName = (String)jwtToken.getClaim(FULL_NAME_CLAIM); 

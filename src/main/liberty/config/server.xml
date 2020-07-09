@@ -8,12 +8,12 @@
         <feature>openIDConnectClient-1.0</feature>
         <feature>jaxrs-2.1</feature>
         <feature>cdi-2.0</feature>
-        <feature>mpConfig-1.3</feature>
+        <feature>mpConfig-1.4</feature>
         <feature>jsonp-1.1</feature>
         <feature>jsonb-1.0</feature>
         <feature>mpOpenTracing-1.3</feature>
-        <feature>mpOpenTracing-1.3</feature>
         <feature>mpOpenAPI-1.1</feature>
+        <feature>mpMetrics-2.3</feature>
 <!--         <feature>jwtSso-1.0</feature> -->
 <!--         <feature>mpJwt-1.1</feature> -->
     </featureManager>
@@ -35,7 +35,7 @@
 
     
     <openidConnectClient id="cdoMondaine" 
-    	audiences="cdo-mondaine,esdl-mapeditor"
+    	audiences="cdo-mondaine,esdl-mapeditor,account"
     	tokenReuse="true" 
 	    clientId="cdo-mondaine"
 	    clientSecret="972d10db-26d4-492b-83ce-c29f05689019"
@@ -48,6 +48,11 @@
     	inboundPropagation="supported"
     	>
 	</openidConnectClient>
+	
+	<administrator-role>
+    	<user-access-id>user:https://idm.hesi.energy/auth/realms/esdl-mapeditor/ewoud.werkman@tno.nl</user-access-id>
+   	 	<group-access-id>group:https://idm.hesi.energy/auth/realms/esdl-mapeditor/cdo_read</group-access-id>
+	</administrator-role>
 
 <!-- 	    userNameAttribute="email" -->
 <!-- 	    userIdentityToCreateSubject="email"  -->

@@ -1,6 +1,8 @@
 package nl.tno.esdl.hub.browser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -36,6 +38,7 @@ import nl.tno.esdl.hub.cdo.AccessController;
 import nl.tno.esdl.hub.cdo.CDOManager;
 import nl.tno.esdl.hub.cdo.PermissionDeniedException;
 import nl.tno.esdl.hub.cdo.UserInfo;
+import nl.tno.esdl.hub.cdo.UserInfo.InvalidLoginInformationException;
 
 /**
  *
@@ -77,8 +80,12 @@ public class BrowserController {
     		@QueryParam("type") String type,
     		@QueryParam("parent") String parent)  {
         IdToken token = PropagationHelper.getIdToken();
-        UserInfo userInfo = AccessController.userInfoFromToken(token);
-        //System.out.println("Token: " + token);
+        UserInfo userInfo;
+		try {
+			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		} catch (InvalidLoginInformationException e) {
+			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+		}        //System.out.println("Token: " + token);
         //System.out.println("NEW User groups:" +token.getClaim("user_group"));
         
         Operation op = Operation.none;
@@ -116,15 +123,7 @@ public class BrowserController {
 				Map<String, Object> contentSummary = cdoManager.getContentSummary(userInfo, id);
 				JsonObjectBuilder contentBuilder = Json.createObjectBuilder();
 				for (Entry<String, Object> entry: contentSummary.entrySet()) {
-					if (entry.getValue() instanceof String) {
-						contentBuilder.add(entry.getKey(), (String)entry.getValue());
-					} else if (entry.getValue() instanceof Number) {
-						contentBuilder.add(entry.getKey(), String.valueOf(entry.getValue()));
-					} else if (entry.getValue() instanceof Boolean) {
-						contentBuilder.add(entry.getKey(), (Boolean)entry.getValue());
-					} else {
-						log.info("Ignoring " + entry);
-					}
+					convertToActualType(contentBuilder, entry.getKey(), entry.getValue());
 				}
 				jsonObject = contentBuilder.build();
 				System.out.println(jsonObject);
@@ -246,7 +245,28 @@ public class BrowserController {
         return Response.accepted(jsonObject).build();
     }
     
-    private JsonObject generateError(String reason) {
+    private void convertToActualType(JsonObjectBuilder contentBuilder, String key, Object value) {
+    	if (value instanceof String) {
+			contentBuilder.add(key, (String)value);
+		} else if (value instanceof Integer) {
+			contentBuilder.add(key, (Integer)value);
+		} else if (value instanceof Boolean) {
+			contentBuilder.add(key, (Boolean)value);
+		} else if (value instanceof Float) {
+			contentBuilder.add(key, (Float)value);
+		} else if (value instanceof Long) {
+			contentBuilder.add(key, (Long)value);
+		} else if (value instanceof BigInteger) {
+			contentBuilder.add(key, (BigInteger)value);
+		} else if (value instanceof BigDecimal) {
+			contentBuilder.add(key, (BigDecimal)value);
+		} else {
+			log.info("Ignoring " + key);
+		}
+		
+	}
+
+	private JsonObject generateError(String reason) {
     	return Json.createObjectBuilder().add("error", reason).build();
     }
     
@@ -268,4 +288,5 @@ public class BrowserController {
     	    	
     	return arrayBuilder.build();
     }
+    
 }

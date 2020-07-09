@@ -1,8 +1,13 @@
 package nl.tno.esdl.hub;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.annotation.security.RolesAllowed;
@@ -20,18 +25,26 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
+import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
+import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
+import org.eclipse.microprofile.metrics.MetricUnits;
+import org.eclipse.microprofile.metrics.annotation.Gauge;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Encoding;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
-import com.ibm.websphere.security.openidconnect.token.IdToken;
 
-import esdl.EnergySystem;
-import esdl.EsdlFactory;
 import esdl.EsdlPackage;
 import nl.tno.esdl.hub.cdo.AccessController;
 import nl.tno.esdl.hub.cdo.CDOManager;
@@ -40,6 +53,8 @@ import nl.tno.esdl.hub.cdo.PermissionDeniedException;
 import nl.tno.esdl.hub.cdo.ResourceMetadata;
 import nl.tno.esdl.hub.cdo.ResourceResult;
 import nl.tno.esdl.hub.cdo.UserInfo;
+import nl.tno.esdl.hub.cdo.UserInfo.InvalidLoginInformationException;
+import nl.tno.esdl.hub.cdo.cache.CachedModel;
 
 /**
  * @author werkmane
@@ -59,24 +74,38 @@ public class CDOServerResource {
 	@GET
 	@Path("/resource/{resourceURL:.+}")
 	@Produces(MediaType.APPLICATION_XML)
+	@RolesAllowed("cdo_read")
 	public Response getResource(@PathParam("resourceURL") String resourceURL) {
 		// String resourceURL = "ewoud/test1.esdl";
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
 		}
-		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		UserInfo userInfo;
+		try {
+			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		} catch (InvalidLoginInformationException e) {
+			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+		}
+		
 		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
 		if (!permission.isAccessible()) {
 			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
 		}
 		log.info("getResource() ResourceURL: " + resourceURL);
+		// try to find it in the cache
+		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
+		if (cachedModel != null) {
+			return Response.ok(cachedModel).build();
+		}
 		try (ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL)) {
-			String xmlString = cdoManager.convertToXMLString(resourceResult.getCDOResource());
+			CDOResource cdoResource = resourceResult.getCDOResource();
+			String xmlString = cdoManager.convertToXMLString(cdoResource);
 			//log.info("Retrieved: " + xmlString);
 			if (xmlString == null) {
 				resourceResult.close();
 				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
 			}
+			cdoManager.setCache(resourceURL,xmlString, cdoResource);
 			Date lastModified = resourceResult.getLastModified();
 			resourceResult.close();
 			return Response.ok(xmlString).lastModified(lastModified).build();
@@ -88,7 +117,10 @@ public class CDOServerResource {
 	}
 
 	// update or create a new resource with resourceURL
-	@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
+	@Operation(description = "Retrieves a ESDL-file from the server")
+	@Parameters(
+			@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
+	)
 /*	@Parameter(
 			description = "The Energy System to store as a string in the POST data",
 			name = "stream",
@@ -96,23 +128,59 @@ public class CDOServerResource {
 			in = ParameterIn.DEFAULT,
 			example = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><esdl:EnergySystem name=\"...\" ...",
 			schema = @Schema(type = SchemaType.STRING))*/
-	@APIResponse(responseCode = "200", description = "Stores a resource in the repository using the supplied URI. Only response is a HTTP status code")
+	@APIResponses(
+			@APIResponse(responseCode = "200", description = "Stores a resource in the repository using the supplied URI. Only response is a HTTP status code")
+	)
 	@PUT
 	@Path("/resource/{resourceURL:.+}")
 	@Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_OCTET_STREAM})
-	public Response putResource(@PathParam("resourceURL") String resourceURL, InputStream stream) {
+	@RolesAllowed("cdo_read")
+	public Response putResource(
+			@PathParam("resourceURL") 
+			String resourceURL,
+			
+			@RequestBody(description = "ESDL content in XML format", name = "stream", 
+				content = {
+					@Content(example = "<?xml version=\"1.0\" encoding=\"UTF-8\">\n<esdl:EnergySystem ...></esdl:EnergySystem", 
+							schema = @Schema(required = true, format="XML String", description = "ESDL content"))
+				}
+			) 
+			InputStream stream) {
 		// String resourceURL = "ewoud/test1.esdl";
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
 		}
-		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		UserInfo userInfo;
+		try {
+			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		} catch (InvalidLoginInformationException e) {
+			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+		}
 		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
 		System.out.println("putResource: " + resourceURL);
 		if (permission.isWritable()) {
-			XMLResourceImpl resource = new XMLResourceImpl();
+			
+			// put in cache: and convert to EMF model
 			try {
 				System.out.println("Reading contents of " + resourceURL);
-				resource.load(stream, null);
+				ByteArrayOutputStream result = new ByteArrayOutputStream();
+				byte[] buffer = new byte[1024];
+				int length;
+				while ((length = stream.read(buffer)) != -1) {
+				    result.write(buffer, 0, length);
+				}
+				// StandardCharsets.UTF_8.name() > JDK 7
+				String xmlString = result.toString(StandardCharsets.UTF_8.name());
+				System.out.println("Storing in cache");
+				cdoManager.setCache(resourceURL, xmlString, null);
+				ByteArrayInputStream resourceInputStream = new ByteArrayInputStream(result.toByteArray()); 
+				
+				// create hashmap to speed up reading
+				HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
+				XMLResourceImpl resource = new XMLResourceImpl();
+				resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
+				resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
+				resource.load(resourceInputStream, null);
 				System.out.println("Done reading contents of " + resourceURL);
 				EObject rootEObject = resource.getContents().get(0);
 				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject);
@@ -128,8 +196,8 @@ public class CDOServerResource {
 									+ EsdlPackage.eNS_URI)
 							.type(MediaType.TEXT_PLAIN).build();
 				}
-				System.out.println("Error saving resource " + e.getMessage());
-				return Response.serverError().entity("Failed to store the resource " + resourceURL)
+				System.out.println("Error saving resource " + resourceURL + ": " + e.getMessage());
+				return Response.serverError().entity("Failed to store the resource " + resourceURL + ": " + e.getMessage())
 						.type(MediaType.TEXT_PLAIN).build();
 			}
 		} else {
@@ -147,32 +215,38 @@ public class CDOServerResource {
 	 * is in there, URI is marked read-write, otherwise read-only
 	 * 
 	 */
+	@Operation(description = "Returns the status of the resource, e.g. if it exists and the last-modified state")
 	@Parameter(allowEmptyValue = false, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
-	@APIResponse(responseCode = "200", description = "Returns OK if the resource exists and is accessible by the user")
-	@APIResponse(responseCode = "403", description = "Returns Not Found if resource is not found")
+	@APIResponses({
+		@APIResponse(responseCode = "200", description = "Returns OK if the resource exists and is accessible by the user"),
+		@APIResponse(responseCode = "403", description = "Returns Forbidden if the user is not allowed to access the resource"),
+		@APIResponse(responseCode = "404", description = "Returns Not Found if resource is not found")
+	})
 	@HEAD
 	@Path("/resource/{resourceURL:.+}")
+	@RolesAllowed("cdo_read")
 	public Response head(@PathParam("resourceURL") String resourceURL) {
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
 		}
 		log.info("getResource() ResourceURL: " + resourceURL);
-		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
-		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
-		if (!permission.isAccessible()) {
-			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
-		}
 		boolean resourceExists = false;
 		try {
+			UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+			
+			HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+			if (!permission.isAccessible()) {
+				return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
+			}
 			resourceExists = cdoManager.existResource(userInfo, resourceURL);
-		} catch (PermissionDeniedException e) {
+			if (resourceExists) {
+				ResourceMetadata resourceMetaData = cdoManager.getResourceMetaData(userInfo, resourceURL);
+				return Response.ok().lastModified(new Date(resourceMetaData.getTimeStamp())).build();
+			} else {
+				return Response.status(Status.NOT_FOUND).build();
+			}
+		} catch (PermissionDeniedException | InvalidLoginInformationException e) {
 			return Response.serverError().status(Status.FORBIDDEN).build();
-		}
-		if (resourceExists) {
-			ResourceMetadata resourceMetaData = cdoManager.getResourceMetaData(userInfo, resourceURL);
-			return Response.ok().lastModified(new Date(resourceMetaData.getTimeStamp())).build();
-		} else {
-			return Response.status(Status.NOT_FOUND).build();
 		}
 	}
 
@@ -198,6 +272,25 @@ public class CDOServerResource {
 		return Response.accepted("Success").build();
 	}
 	*/
+	
+	@GET
+	@RolesAllowed("cdo_read")
+	@Produces(MediaType.APPLICATION_JSON)
+	@Operation(description = "Invalidates the user session")
+	public Response logout() {
+		UserInfo userInfo;
+		try {
+			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		} catch (InvalidLoginInformationException e) {
+			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+		}
+		if (userInfo != null) {
+			cdoManager.logoutSession(userInfo);
+			return Response.ok().build();
+		} else {
+			return Response.serverError().status(Status.FORBIDDEN).build();
+		}
+	}
 
 	@GET
 	@Path("/list")
@@ -210,8 +303,12 @@ public class CDOServerResource {
 //		log.info("Subject: " + callerPrincipal.getSubject());
 //		log.info("Claim names: " + callerPrincipal.getClaimNames());
 //		log.info("Roles: " + callerPrincipal.getClaim("roles"));
-		IdToken token = PropagationHelper.getIdToken();
-		UserInfo userInfo = AccessController.userInfoFromToken(token);
+		UserInfo userInfo;
+		try {
+			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		} catch (InvalidLoginInformationException e) {
+			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+		}
 		if (userInfo != null) {
 			log.info("List resources request by: " + userInfo);
 			ArrayList<String> resources = cdoManager.listResources(userInfo);
@@ -220,6 +317,9 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).build();
 		}
 	}
+	
+	
+	
 	
 	/*
 	@GET

@@ -21,14 +21,8 @@ public class AccessController {
 		Users
 	}
 	
-	public static UserInfo userInfoFromToken(IdToken jwtToken) {
-		try {
-			return new UserInfo(jwtToken);
-		} catch (InvalidLoginInformationException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return null;
+	public static UserInfo userInfoFromToken(IdToken jwtToken) throws InvalidLoginInformationException {
+		return new UserInfo(jwtToken);
 	}
 	
 	public static boolean isWritable(String path, List<String> accessGroups) {

@@ -7,9 +7,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,15 +15,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.context.Destroyed;
 import javax.enterprise.context.Initialized;
-import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.jms.IllegalStateException;
+import javax.ws.rs.InternalServerErrorException;
 
+import org.eclipse.emf.cdo.CDOLock;
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
@@ -53,7 +56,8 @@ import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.metrics.MetricUnits;
+import org.eclipse.microprofile.metrics.annotation.Gauge;
 import org.eclipse.net4j.Net4jUtil;
 import org.eclipse.net4j.connector.IConnector;
 import org.eclipse.net4j.tcp.TCPUtil;
@@ -72,6 +76,8 @@ import esdl.EnergySystem;
 import esdl.EsdlPackage;
 import nl.tno.esdl.hub.browser.BrowserNode;
 import nl.tno.esdl.hub.browser.BrowserNode.BrowserNodeType;
+import nl.tno.esdl.hub.cdo.cache.CachedModel;
+import nl.tno.esdl.hub.cdo.cache.LRUCache;
 
 /**
  * @author werkmane
@@ -80,13 +86,16 @@ import nl.tno.esdl.hub.browser.BrowserNode.BrowserNodeType;
 //@ApplicationScoped
 @Singleton
 public class CDOManager {
-
-	@Inject
-	@ConfigProperty(name = "CDO_REPOSITORY_NAME" /* , defaultValue = "mondaine" */)
+	
+	private final static long CONCURRENTWRITE_TIMEOUT_MINUTES = 10;
+	
+// Injecting Does not work somehow?
+//	@Inject
+//	@ConfigProperty(name = "CDO_REPOSITORY_NAME" /* , defaultValue = "mondaine" */)
 	private String cdoRepositoryName;
 
-	@Inject
-	@ConfigProperty(name = "CDO_SERVER_HOST" /* , defaultValue = "localhost:2036" */)
+//	@Inject
+//	@ConfigProperty(name = "CDO_SERVER_HOST" /* , defaultValue = "localhost:2036" */)
 	private String cdoServerHostName;
 
 	private CDONet4jSessionConfiguration configuration;
@@ -94,6 +103,7 @@ public class CDOManager {
 	private IManagedContainer container;
 	
 	private ConcurrentHashMap<String, SessionDetails> sessionMap = new ConcurrentHashMap<String, SessionDetails>();
+	private Map<String, CachedModel> cache = LRUCache.newSynchronizedInstance(100);
 
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
 
@@ -110,58 +120,120 @@ public class CDOManager {
 	public CDONet4jSession getSession(UserInfo userInfo) {
 		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
 		if (sessionDetails == null) {
-			configuration.setUserID(userInfo.getUserName());
-			CDONet4jSession net4jSession = configuration.openNet4jSession();
-			sessionDetails = new SessionDetails(net4jSession, userInfo);
+			CDONet4jSessionConfiguration userSessionConfiguration = createUserSessionConfiguration(userInfo);
+			sessionDetails = new SessionDetails(userSessionConfiguration, userInfo);
+			CDONet4jSession cdoSession = sessionDetails.getCDOSession();
 			sessionMap.put(userInfo.getUserName(), sessionDetails);
-			log.info("Creating new CDO session for " + userInfo.getUserName());
+			log.info("Creating new CDO session configuration for " + userInfo.getUserName());
 			ensureUserFoldersPresent(userInfo);
-			return net4jSession;
+			return cdoSession;
 		} else {
 			CDONet4jSession cdoSession = sessionDetails.getCDOSession();
-			if (cdoSession.isClosed()) {
-				log.warning("Cached CDO session is closed, creating new one for " + userInfo.getUserName());
-				sessionMap.remove(userInfo.getUserName());
-				return getSession(userInfo); // return a new session
-			} else {
-				log.info("Retrieving cached session for " + userInfo.getUserName());
-				return cdoSession;
-			}
+			return cdoSession;
+		}
+	}
+	
+	public CDONet4jSession getUnManagedSession(UserInfo userInfo) {
+		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
+		if (sessionDetails != null) {
+			return sessionDetails.createUnManagedSession();
+		} else {
+			return getSession(userInfo);
+		}
+		
+	}
+	
+	public void logoutSession(UserInfo userInfo) {
+		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
+		if (sessionDetails != null) 
+			sessionDetails.logout();
+	}
+	
+	public Map<String,CachedModel> getCache() {
+		return cache; 
+	}
+	
+	public String getCachedModelXML(String path) {
+		CachedModel cachedModel = cache.get(path);
+		if (cachedModel != null) {
+			return cachedModel.getXmlContent();
+		}
+		return null;
+	}
+	
+	public void setCache(String path, String xmlContent, CDOResource cdoResource) {
+		CachedModel cachedModel = cache.get(path);
+		if (cachedModel == null) {
+			cachedModel = new CachedModel(path, xmlContent, cdoResource);
+			cache.put(path, cachedModel);
+		} else {
+			cachedModel.setXmlContent(xmlContent);
+			cachedModel.setResource(cdoResource);
 		}
 	}
 
 
-	public CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, EObject rootObject)
-			throws ConcurrentAccessException, CommitException, PermissionDeniedException {
+	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, EObject rootObject)
+			throws ConcurrentAccessException, CommitException, PermissionDeniedException, IllegalStateException, TimeoutException, InterruptedException {
 		log.info("Starting storeResource transaction " + resourceName);
-		// Open session
-		CDONet4jSession session = getSession(userInfo);
-		// Open transaction
-		CDOTransaction transaction = session.openTransaction();
-		
 		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not writable by " + userInfo.getUserName());
 		}
+		CDONet4jSession unManagedSession = null;
+//		ReentrantLock writeLock = new ReentrantLock();
+//		try {
+//			System.out.print("Acquiring write lock"); // for folder "+ resourceFolder.getPath() + "...");
+//			if (!writeLock.tryLock(CONCURRENTWRITE_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+//				throw new InternalServerErrorException("Cant get a write lock to write to the database within " + CONCURRENTWRITE_TIMEOUT_MINUTES + " minutes");
+//			}
+//			System.out.println("done");
+		
+			// Open session
+			unManagedSession = getSession(userInfo);
+			// Open transaction
+			//CDOView view = session.openView();
+			CDOTransaction transaction = unManagedSession.openTransaction();
+			
+			// Get or create resource
+			String folder = resourceName.substring(0, resourceName.lastIndexOf('/'));
+			if (folder == null || folder.isEmpty()) {
+				throw new IllegalStateException("Folder not found for resource " + resourceName);
+			}
+			System.out.println("Transaction folder: " + folder);
+			CDOResourceFolder resourceFolder = transaction.getResourceFolder(folder);
+			//CDOLock writeLock = resourceFolder.cdoWriteLock();
 
-		// Get or create resource
-		CDOResource resource = transaction.getOrCreateResource(resourceName); // $NON-NLS-1$
+		
+			//transaction = session.openTransaction();
+			CDOResource resource = transaction.getOrCreateResource(resourceName); // $NON-NLS-1$
+			// Work with the resource and commit the transaction
+			if (resource.getContents().size() == 1) {
+				// overwrite
+				resource.getContents().set(0, rootObject);
+			} else {
+				resource.getContents().add(rootObject);
+			}
+			System.out.println("Committing transaction");
+			CDOCommitInfo commitInfo = transaction.commit();
+			//resource.setTimeStamp(commitInfo.getTimeStamp());
+			// Cleanup
+			log.info("CommitInfo: " + commitInfo);
+			log.info("Ending storeResource transaction");
 
-		// Work with the resource and commit the transaction
-		if (resource.getContents().size() == 1) {
-			// overwrite
-			resource.getContents().set(0, rootObject);
-		} else {
-			resource.getContents().add(rootObject);
-		}
-		CDOCommitInfo commitInfo = transaction.commit();
-		resource.setTimeStamp(commitInfo.getTimeStamp());
-
-		// Cleanup
-		log.info("CommitInfo: " + commitInfo);
-		log.info("Ending storeResource transaction");
-
-		return commitInfo;
+			return commitInfo;
+			
+//		} catch (Exception e ) {
+//			System.out.println("Acquiring write lock: timed out");
+//			throw e;
+//		} finally {
+//			writeLock.unlock();
+//			if (unManagedSession != null) {
+//				unManagedSession.close();
+//			}
+//		}
+		 
+				
 	}
 
 	/**
@@ -345,29 +417,7 @@ public class CDOManager {
 			configuration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
 			log.info("Signal timeout" + configuration.getSignalTimeout());
 			configuration.setSignalTimeout(60000);
-			configuration.addListener(new IListener()
-		    {
-		      @Override
-		      public void notifyEvent(IEvent event)
-		      {
-		    	log.info("CDO Event: " + event);
-		        if (event instanceof SessionOpenedEvent)
-		        {
-		          SessionOpenedEvent e = (SessionOpenedEvent)event;
-		          CDOSession session = e.getOpenedSession();
-		          log.info("Opened " + session);
-
-		          session.addListener(new LifecycleEventAdapter()
-		          {
-		            @Override
-		            protected void onAboutToDeactivate(ILifecycle lifecycle)
-		            {
-		            	log.info("Closing " + lifecycle);
-		            }
-		          });
-		        }
-		      }
-		    });
+			configuration.addListener(cdoEventListener);
 
 			// Register ESDL
 			CDOSession session = configuration.openNet4jSession();
@@ -378,6 +428,44 @@ public class CDOManager {
 		}
 
 	}
+	
+	private CDONet4jSessionConfiguration createUserSessionConfiguration(UserInfo userInfo) {
+		CDONet4jSessionConfiguration sessionConfiguration = CDONet4jUtil.createNet4jSessionConfiguration();
+		sessionConfiguration.setConnector(connector);
+		sessionConfiguration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
+		configuration.setSignalTimeout(60000);
+		log.info("Signal timeout " + sessionConfiguration.getSignalTimeout());
+		sessionConfiguration.addListener(cdoEventListener);
+		sessionConfiguration.setUserID(userInfo.getUserName());
+		sessionConfiguration.setActivateOnOpen(true);
+		return sessionConfiguration;		
+	}
+	
+	
+	private IListener cdoEventListener = new IListener()
+    {
+	      @Override
+	      public void notifyEvent(IEvent event)
+	      {
+	    	log.info("CDO Event: " + event);
+	        if (event instanceof SessionOpenedEvent)
+	        {
+	          SessionOpenedEvent e = (SessionOpenedEvent)event;
+	          CDOSession session = e.getOpenedSession();
+	          log.info("Opened " + session);
+
+	          session.addListener(new LifecycleEventAdapter()
+	          {
+	            @Override
+	            protected void onAboutToDeactivate(ILifecycle lifecycle)
+	            {
+	            	log.info("Closing " + lifecycle);
+	            }
+	          });
+	        }
+	      }
+	    };
+	
 
 	@Destroyed(ApplicationScoped.class)
 	private void shutdownCDO() {
@@ -478,7 +566,7 @@ public class CDOManager {
 		//System.out.println("ES name: " + es.getName());
 		map.put("fileName", resource.getName());
 		map.put("Revision version ", resource.cdoRevision().getVersion());
-		map.put("Last saved", LocalDateTime.ofInstant(Instant.ofEpochMilli(resource.cdoRevision().getTimeStamp()), ZoneId.systemDefault()).toString());
+		map.put("Last saved", resource.cdoRevision().getTimeStamp());
 		
 		EList<EStructuralFeature> eAllStructuralFeatures = es.eClass().getEAllStructuralFeatures();
 		for(EStructuralFeature feature: eAllStructuralFeatures) {
@@ -649,4 +737,20 @@ public class CDOManager {
 		}
 	}
 
+	
+	 @Gauge(name = "model_cache_count", unit = MetricUnits.NONE)
+	 private int getCacheCount() {
+		 return getCache().size();
+	 }
+	 
+	 @Gauge(name = "model_cache_size", unit = MetricUnits.BYTES)
+	 private long getCacheSize() {
+		 Map<String, CachedModel> cache = getCache();
+		 long size = 0;
+		 for (CachedModel cachedModel : cache.values()) {
+			size += cachedModel.getXmlContent().length();
+		 }
+		 return size;
+	 }
+	
 }
