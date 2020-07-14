@@ -10,11 +10,13 @@
 	<packaging>war</packaging>
 	<properties>
 		<openliberty.maven.version>3.2.2</openliberty.maven.version>
-		<maven.compiler.target>1.8</maven.compiler.target>
-		<failOnMissingWebXml>false</failOnMissingWebXml>
-		<maven.compiler.source>1.8</maven.compiler.source>
 		<openliberty.version>20.0.0.4</openliberty.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<maven.compiler.target>1.8</maven.compiler.target>
+		<maven.compiler.source>1.8</maven.compiler.source>
 		<final.name>hub</final.name>
+		<failOnMissingWebXml>false</failOnMissingWebXml>
 	</properties>
 
 	<!-- the hesi snapshot repository updates ESDL after each push -->

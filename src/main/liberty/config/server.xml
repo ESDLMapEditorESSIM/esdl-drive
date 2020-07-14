@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <server description="${project.name}">
+	
+	
+
+	<variable name="keycloak_realm" value="https://idm.hesi.energy/auth/realms/esdl-mapeditor" />
+
 
     <featureManager>
 <!--         <feature>microProfile-3.2</feature> -->
@@ -26,11 +31,13 @@
 
     <webApplication location="${project.name}.war" contextRoot="/">
         <classloader apiTypeVisibility="+third-party" />
-<!--         <application-bnd> -->
-<!--         	<security-role name="cdo_security"> -->
-<!--         		<group name="cdo_read" access-id="group:https://idm.hesi.energy/auth/realms/esdl-mapeditor/cdo_read"/> -->
-<!--         	</security-role> -->
-<!--         </application-bnd> -->
+		 <application-bnd>
+		 	<!--  Map the cdo_read group name from keycloak on the cdo_read security role -->
+		 	<!--  This is used in web.xml to secure the html files by keycloak -->
+			<security-role name="cdo_read">
+				<group name="cdo_read" access-id="group:${keycloak_realm}/cdo_read"/>
+			</security-role>
+		</application-bnd>
     </webApplication>
 
     
@@ -39,9 +46,9 @@
     	tokenReuse="true" 
 	    clientId="cdo-mondaine"
 	    clientSecret="972d10db-26d4-492b-83ce-c29f05689019"
-	    discoveryEndpointUrl="https://idm.hesi.energy/auth/realms/esdl-mapeditor/.well-known/openid-configuration"
+	    discoveryEndpointUrl="${keycloak_realm}/.well-known/openid-configuration"
 	    signatureAlgorithm="RS256"
-	    scope="openid profile email groups user_group microprofile-jwt"
+	    scope="openid profile email groups user_group user_group_path microprofile-jwt"
 	    userIdentifier="email"
     	groupIdentifier="groups"
     	userInfoEndpointEnabled="true"
@@ -49,6 +56,8 @@
     	>
 	</openidConnectClient>
 	
+	<!--  map the user ewoud.werkman@tno.nl to the administrator  -->
+	<!--  the /metrics administration endpoint -->
 	<administrator-role>
     	<user-access-id>user:https://idm.hesi.energy/auth/realms/esdl-mapeditor/ewoud.werkman@tno.nl</user-access-id>
    	 	<group-access-id>group:https://idm.hesi.energy/auth/realms/esdl-mapeditor/cdo_read</group-access-id>
@@ -62,8 +71,11 @@
 <!-- 	<jwtSso issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"  setCookieSecureFlag="false"/>             -->
 <!-- 	includeLtpaCookie="true"  jwtBuilderRef="myBuilder" -->
 <!-- 	<jwtConsumer id="defaultJWTConsumer" trustStoreRef="defaultKeyStore" trustAliasName="esdl-mapeditor" issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"/> -->
-<!-- 
-	<jwtConsumer id="defaultJWTConsumer" jwkEnabled="true" jwksUri="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/certs" issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"/>
+
+<!-- As alternative to the openIdConnect config we could also use microprofile JWT, but at march 2020 then did not support
+     communicating additional claims in the JWT token besides groups. In future this should work and is simpler to configure: 
+     use jwtConsumer, jwtBuilder, and mpJWT --> 
+<!-- 	<jwtConsumer id="defaultJWTConsumer" jwkEnabled="true" jwksUri="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/certs" issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"/>
 	<jwtBuilder id="myBuilder" 
 		issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"
 		scope="openid profile email groups user_group microprofile-jwt">
@@ -76,12 +88,10 @@
 		audiences="cdo-mapeditor" 
 		/>
     -->
-    <authFilter id="dataUrl">
-         <requestUrl id="requestUrl" urlPattern="/store/*" matchType="contains"/>
-	</authFilter>
+<!--     <authFilter id="dataUrl"> -->
+<!--          <requestUrl id="requestUrl" urlPattern="/store/*" matchType="contains"/> -->
+<!-- 	</authFilter> -->
 
-    <!-- This is the keystore that will be used by SSL and by JWT.  -->
-    <!-- <keyStore id="defaultKeyStore" trustDefaultCerts="true" location="public.jks" type="JKS" password="admin123!" /> -->
     <!-- This is the keystore that will be used by SSL and by JWT. -->
     <keyStore id="defaultKeyStore" location="public.p12" type="PKCS12" password="admin123!" trustDefaultCerts="true" />
 
