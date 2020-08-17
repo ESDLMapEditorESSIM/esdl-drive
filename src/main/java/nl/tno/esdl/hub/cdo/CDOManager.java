@@ -7,7 +7,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,9 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -26,9 +26,7 @@ import javax.enterprise.context.Destroyed;
 import javax.enterprise.context.Initialized;
 import javax.inject.Singleton;
 import javax.jms.IllegalStateException;
-import javax.ws.rs.InternalServerErrorException;
 
-import org.eclipse.emf.cdo.CDOLock;
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
@@ -103,7 +101,7 @@ public class CDOManager {
 	private IManagedContainer container;
 	
 	private ConcurrentHashMap<String, SessionDetails> sessionMap = new ConcurrentHashMap<String, SessionDetails>();
-	private Map<String, CachedModel> cache = LRUCache.newSynchronizedInstance(100);
+	private Map<String, CachedModel> cache = LRUCache.newSynchronizedInstance(200);
 
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
 
@@ -147,6 +145,7 @@ public class CDOManager {
 		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
 		if (sessionDetails != null) 
 			sessionDetails.logout();
+			sessionMap.remove(userInfo.getUserName());
 	}
 	
 	public Map<String,CachedModel> getCache() {
@@ -201,7 +200,7 @@ public class CDOManager {
 				throw new IllegalStateException("Folder not found for resource " + resourceName);
 			}
 			System.out.println("Transaction folder: " + folder);
-			CDOResourceFolder resourceFolder = transaction.getResourceFolder(folder);
+			//CDOResourceFolder resourceFolder = transaction.getResourceFolder(folder);
 			//CDOLock writeLock = resourceFolder.cdoWriteLock();
 
 		
@@ -566,6 +565,19 @@ public class CDOManager {
 		//System.out.println("ES name: " + es.getName());
 		map.put("fileName", resource.getName());
 		map.put("Revision version ", resource.cdoRevision().getVersion());
+		System.out.println("Size count " + resource.cdoHistory().size());
+		resource.cdoHistory().setLoadCount(3);
+		resource.cdoHistory().triggerLoad();
+		resource.cdoHistory().waitWhileLoading(1000*100);
+		CDOCommitInfo[] elements = resource.cdoHistory().getElements();
+		if (elements != null) {
+			for (int i = 0; i < elements.length; i++ ) {
+				CDOCommitInfo h = elements[i];
+				map.put("commit" + i, h.getUserID() + ": " + h.getComment() + " @ " +  LocalDateTime.ofInstant(Instant.ofEpochMilli(h.getTimeStamp()), ZoneId.of("Europe/Amsterdam")));
+			}
+		} else {
+			System.out.println("History is null");
+		}
 		map.put("Last saved", resource.cdoRevision().getTimeStamp());
 		
 		EList<EStructuralFeature> eAllStructuralFeatures = es.eClass().getEAllStructuralFeatures();
@@ -619,6 +631,7 @@ public class CDOManager {
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
 			resourceNode.delete(null);
+			getCache().remove(path);
 			transaction.commit();
 		} catch (CDOResourceNodeNotFoundException e) {
 			throw e;
@@ -645,6 +658,13 @@ public class CDOManager {
 			System.out.println("New path: " + resourceNode.getPath()); 
 			transaction.commit();
 			String newPath =  resourceNode.getPath();
+			// update cache
+			CachedModel cachedModel = getCache().get(path);
+			if (cachedModel != null) {
+				getCache().remove(path);
+				cachedModel.setPath(newPath);
+				getCache().put(path, cachedModel);
+			}
 			return newPath;
 		} catch (CDOResourceNodeNotFoundException e) {
 			e.printStackTrace();
@@ -694,6 +714,7 @@ public class CDOManager {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
 			if (resourceNode instanceof CDOResourceFolder) {
 				// TODO
+				System.out.println("Copying Folders is not implemented yet");
 			} else { // CDOResource or CDOFileResource
 				String fileName = resourceNode.getName();
 				//CDOResourceFolder newFolder = transaction.getResourceFolder(newParentFolder);

@@ -7,12 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.logging.Logger;
 
 import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.HEAD;
@@ -20,6 +21,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
@@ -30,12 +32,9 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
-import org.eclipse.microprofile.metrics.MetricUnits;
-import org.eclipse.microprofile.metrics.annotation.Gauge;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
-import org.eclipse.microprofile.openapi.annotations.media.Encoding;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
@@ -54,7 +53,6 @@ import nl.tno.esdl.hub.cdo.ResourceMetadata;
 import nl.tno.esdl.hub.cdo.ResourceResult;
 import nl.tno.esdl.hub.cdo.UserInfo;
 import nl.tno.esdl.hub.cdo.UserInfo.InvalidLoginInformationException;
-import nl.tno.esdl.hub.cdo.cache.CachedModel;
 
 /**
  * @author werkmane
@@ -274,10 +272,11 @@ public class CDOServerResource {
 	*/
 	
 	@GET
+	@Path("/logout")
 	@RolesAllowed("cdo_read")
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(description = "Invalidates the user session")
-	public Response logout() {
+	public Response logout(@Context HttpServletRequest servletRequest) {
 		UserInfo userInfo;
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
@@ -286,6 +285,13 @@ public class CDOServerResource {
 		}
 		if (userInfo != null) {
 			cdoManager.logoutSession(userInfo);
+			if (servletRequest != null) {
+				try {
+					servletRequest.logout();
+				} catch (ServletException e) {
+					e.printStackTrace();
+				}
+			}
 			return Response.ok().build();
 		} else {
 			return Response.serverError().status(Status.FORBIDDEN).build();

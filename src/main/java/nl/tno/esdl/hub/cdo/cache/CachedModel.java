@@ -9,7 +9,7 @@ import org.eclipse.emf.cdo.eresource.CDOResource;
  *
  */
 public class CachedModel {
-	private final String path;
+	private String path;
 	private String xmlContent;
 	private CDOResource resource;
 	
@@ -25,6 +25,11 @@ public class CachedModel {
 		this.setXmlContent(xmlContent);
 		this.setResource(resource);
 	}
+	
+	public void setPath(String path) {
+		this.path = path;
+	}
+
 
 	public String getPath() {
 		return path;

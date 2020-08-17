@@ -48,6 +48,8 @@ import nl.tno.esdl.hub.cdo.UserInfo.InvalidLoginInformationException;
 public class BrowserController {
 	
 	
+	private static final String ROOT_FOLDER_NAME = "ESDL Drive";
+
 	Logger log = Logger.getLogger(this.getClass().getName());
 
 	@Inject
@@ -106,7 +108,7 @@ public class BrowserController {
 				
 				JsonArray children = getFolderContents(userInfo, "/");
 				
-				JsonObject root = Json.createObjectBuilder().add("text", "Mondaine Hub")
+				JsonObject root = Json.createObjectBuilder().add("text", ROOT_FOLDER_NAME)
 						.add("children", children)
 						.add("id", "/")
 						.add("icon", BrowserNodeType.FOLDER.getIconName())
