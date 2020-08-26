@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<server description="${project.name}">
+
+	<!--  config for idm.hesi.energy -->
+	<variable name="keycloak_client_secret" value="972d10db-26d4-492b-83ce-c29f05689019" />
+	<variable name="keystore_password" value="admin123!" />
+</server>

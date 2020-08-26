@@ -21,6 +21,7 @@ import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -89,6 +90,8 @@ public class CDOServerResource {
 		if (!permission.isAccessible()) {
 			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
 		}
+		
+		
 		log.info("getResource() ResourceURL: " + resourceURL);
 		// try to find it in the cache
 		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
@@ -136,6 +139,8 @@ public class CDOServerResource {
 	public Response putResource(
 			@PathParam("resourceURL") 
 			String resourceURL,
+			@QueryParam("commitMessage") 
+			String commitMessage,
 			
 			@RequestBody(description = "ESDL content in XML format", name = "stream", 
 				content = {
@@ -173,6 +178,15 @@ public class CDOServerResource {
 				cdoManager.setCache(resourceURL, xmlString, null);
 				ByteArrayInputStream resourceInputStream = new ByteArrayInputStream(result.toByteArray()); 
 				
+				
+				
+				String generatedCommitMessage = null;
+				if (commitMessage != null) {
+					generatedCommitMessage = commitMessage;
+				} else {
+					generatedCommitMessage = "Initial upload";
+				}
+				
 				// create hashmap to speed up reading
 				HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
 				XMLResourceImpl resource = new XMLResourceImpl();
@@ -181,7 +195,7 @@ public class CDOServerResource {
 				resource.load(resourceInputStream, null);
 				System.out.println("Done reading contents of " + resourceURL);
 				EObject rootEObject = resource.getContents().get(0);
-				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject);
+				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject, generatedCommitMessage);
 				System.out.println("Saved " + resourceURL + ", commitInfo: " + commitInfo);
 				long timeStamp = commitInfo.getTimeStamp();
 				return Response.ok().lastModified(new Date(timeStamp)).build();
@@ -190,7 +204,7 @@ public class CDOServerResource {
 				e.printStackTrace();
 				if (e instanceof PackageNotFoundException) {
 					return Response.serverError().entity(
-							"Input is not of type ESDL: XML namespaceURI is not defined or is (xmlns:esdl) is different from "
+							"Input is not of type ESDL: XML namespaceURI is not defined or (xmlns:esdl) is different from "
 									+ EsdlPackage.eNS_URI)
 							.type(MediaType.TEXT_PLAIN).build();
 				}

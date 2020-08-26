@@ -214,11 +214,12 @@
 								$('#data .content').hide();
 								switch(d.type) {
 									case 'esdl':
+										console.log(d);
 										$t = $('<table>');
 										for (let attr in d) {
 											let $tr = $('<tr>');
-											$tr.append($('<td>').text(attr));
-											$tr.append($('<td>').text(d[attr]));
+											$tr.append($('<td>').html(attr));
+											$tr.append($('<td>').html(d[attr]));
 											$t.append($tr);
 										}
 										$('#data .esdl').empty();

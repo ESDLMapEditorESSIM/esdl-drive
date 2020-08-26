@@ -43,10 +43,21 @@ import org.eclipse.emf.cdo.session.CDOSessionConfiguration.SessionOpenedEvent;
 import org.eclipse.emf.cdo.transaction.CDOTransaction;
 import org.eclipse.emf.cdo.util.CommitException;
 import org.eclipse.emf.cdo.util.ConcurrentAccessException;
+import org.eclipse.emf.cdo.util.InvalidURIException;
 import org.eclipse.emf.cdo.view.CDOView;
 import org.eclipse.emf.common.util.BasicEList;
+import org.eclipse.emf.common.util.BasicMonitor;
+import org.eclipse.emf.common.util.BasicMonitor.Printing;
 import org.eclipse.emf.common.util.ECollections;
 import org.eclipse.emf.common.util.EList;
+import org.eclipse.emf.common.util.URI;
+import org.eclipse.emf.compare.Comparison;
+import org.eclipse.emf.compare.Conflict;
+import org.eclipse.emf.compare.Diff;
+import org.eclipse.emf.compare.EMFCompare;
+import org.eclipse.emf.compare.merge.IMerger;
+import org.eclipse.emf.compare.merge.IMerger.Registry;
+import org.eclipse.emf.compare.scope.DefaultComparisonScope;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
@@ -85,7 +96,7 @@ import nl.tno.esdl.hub.cdo.cache.LRUCache;
 @Singleton
 public class CDOManager {
 	
-	private final static long CONCURRENTWRITE_TIMEOUT_MINUTES = 10;
+	//private final static long CONCURRENTWRITE_TIMEOUT_MINUTES = 10;
 	
 // Injecting Does not work somehow?
 //	@Inject
@@ -172,14 +183,14 @@ public class CDOManager {
 	}
 
 
-	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, EObject rootObject)
+	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, EObject rootObject, String commitMessage)
 			throws ConcurrentAccessException, CommitException, PermissionDeniedException, IllegalStateException, TimeoutException, InterruptedException {
 		log.info("Starting storeResource transaction " + resourceName);
 		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not writable by " + userInfo.getUserName());
 		}
-		CDONet4jSession unManagedSession = null;
+		CDONet4jSession session = null;
 //		ReentrantLock writeLock = new ReentrantLock();
 //		try {
 //			System.out.print("Acquiring write lock"); // for folder "+ resourceFolder.getPath() + "...");
@@ -189,37 +200,62 @@ public class CDOManager {
 //			System.out.println("done");
 		
 			// Open session
-			unManagedSession = getSession(userInfo);
+			session = getSession(userInfo);
 			// Open transaction
 			//CDOView view = session.openView();
-			CDOTransaction transaction = unManagedSession.openTransaction();
+			CDOTransaction transaction = session.openTransaction();
 			
 			// Get or create resource
-			String folder = resourceName.substring(0, resourceName.lastIndexOf('/'));
-			if (folder == null || folder.isEmpty()) {
-				throw new IllegalStateException("Folder not found for resource " + resourceName);
-			}
-			System.out.println("Transaction folder: " + folder);
+//			String folder = resourceName.substring(0, resourceName.lastIndexOf('/'));
+//			if (folder == null || folder.isEmpty()) {
+//				throw new IllegalStateException("Folder not found for resource " + resourceName);
+//			}
+//			System.out.println("Transaction folder: " + folder);
 			//CDOResourceFolder resourceFolder = transaction.getResourceFolder(folder);
 			//CDOLock writeLock = resourceFolder.cdoWriteLock();
-
-		
-			//transaction = session.openTransaction();
-			CDOResource resource = transaction.getOrCreateResource(resourceName); // $NON-NLS-1$
-			// Work with the resource and commit the transaction
-			if (resource.getContents().size() == 1) {
-				// overwrite
-				resource.getContents().set(0, rootObject);
-			} else {
-				resource.getContents().add(rootObject);
+			CDOCommitInfo commitInfo = null;
+			try {
+				CDOResource fromDatabase = transaction.getResource(resourceName);
+				// file exists in database. Store only the differences, which is significantly faster. 
+				EObject esFromDatabase = fromDatabase.getContents().get(0);
+				EMFCompare compare = EMFCompare.builder().build();
+				Registry mergerRegistry = IMerger.RegistryImpl.createStandaloneInstance();
+				Printing monitor = new BasicMonitor.Printing(System.out);
+				// Calculate differences and merge difference
+				// Create a URI for the uploaded resource, this is needed in the compare
+				rootObject.eResource().setURI(URI.createURI(resourceName));
+				System.out.println("Database: " + esFromDatabase + ", input: " + rootObject);
+				DefaultComparisonScope scope = new DefaultComparisonScope(esFromDatabase, rootObject, null);
+				System.out.println("Creating comparision...");
+				Comparison comparison = compare.compare(scope, monitor);
+				for(Conflict conflict: comparison.getConflicts()) {
+					System.out.println(conflict);
+				}
+				System.out.println("Merging differences");
+				for (Diff diff: comparison.getDifferences()) {
+					IMerger merger = mergerRegistry.getHighestRankingMerger(diff);
+					merger.copyRightToLeft(diff, monitor);
+				}
+				commitMessage += " (" + comparison.getDifferences().size() + " changes, " + comparison.getConflicts().size() +  " conflicts)";
+				transaction.setCommitComment(commitMessage);
+				commitInfo = transaction.commit();
+			} catch (CDOResourceNodeNotFoundException |InvalidURIException e) {
+				// New file or forced overwrite
+				transaction.setCommitComment(commitMessage);
+				CDOResource resource = transaction.getOrCreateResource(resourceName); // $NON-NLS-1$
+				// Work with the resource and commit the transaction
+				if (resource.getContents().size() == 1) {
+					// overwrite
+					resource.getContents().set(0, rootObject);
+				} else {
+					resource.getContents().add(rootObject);
+				}
+				System.out.println("Committing transaction");
+				commitInfo = transaction.commit();
+				// Cleanup
+				log.info("CommitInfo: " + commitInfo);
+				log.info("Ending storeResource transaction");
 			}
-			System.out.println("Committing transaction");
-			CDOCommitInfo commitInfo = transaction.commit();
-			//resource.setTimeStamp(commitInfo.getTimeStamp());
-			// Cleanup
-			log.info("CommitInfo: " + commitInfo);
-			log.info("Ending storeResource transaction");
-
 			return commitInfo;
 			
 //		} catch (Exception e ) {
@@ -547,7 +583,7 @@ public class CDOManager {
 		CDOResource resource = transaction.getResource(fileName);
 		System.out.println("Resource: " + resource);
 		map.put("type", resource.getExtension());
-		System.out.println("Retreiving " + fileName);
+		System.out.println("Retrieving:" + fileName);
 		System.out.print("getting last 3 revisions");
 		resource.cdoPrefetch(3); //CDORevision.DEPTH_INFINITE);
 		System.out.println("done");
@@ -564,17 +600,22 @@ public class CDOManager {
 		EnergySystem es = (EnergySystem) resource.getContents().get(0);
 		//System.out.println("ES name: " + es.getName());
 		map.put("fileName", resource.getName());
-		map.put("Revision version ", resource.cdoRevision().getVersion());
-		System.out.println("Size count " + resource.cdoHistory().size());
+		map.put("Revision version", resource.cdoRevision().getVersion());
+		System.out.println("History size count:" + resource.cdoHistory().size());
 		resource.cdoHistory().setLoadCount(3);
 		resource.cdoHistory().triggerLoad();
 		resource.cdoHistory().waitWhileLoading(1000*100);
 		CDOCommitInfo[] elements = resource.cdoHistory().getElements();
 		if (elements != null) {
+			String commits = "";
 			for (int i = 0; i < elements.length; i++ ) {
 				CDOCommitInfo h = elements[i];
-				map.put("commit" + i, h.getUserID() + ": " + h.getComment() + " @ " +  LocalDateTime.ofInstant(Instant.ofEpochMilli(h.getTimeStamp()), ZoneId.of("Europe/Amsterdam")));
+				commits += h.getUserID();
+				commits += " / " + LocalDateTime.ofInstant(Instant.ofEpochMilli(h.getTimeStamp()), ZoneId.of("Europe/Amsterdam"));
+				commits += h.getComment()==null? " / No commit message" : " / " + h.getComment();
+				commits += "<br>\n";
 			}
+			map.put("Commits", commits);
 		} else {
 			System.out.println("History is null");
 		}

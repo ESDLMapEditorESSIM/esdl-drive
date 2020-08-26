@@ -6,16 +6,20 @@
 	<!-- keycloak_realm URI, accessible by this service -->
 	<variable name="keycloak_realm" defaultValue="https://idm.hesi.energy/auth/realms/esdl-mapeditor" />
 	<!-- Optinal for localhost deployment, Keycloak realm URI, external accessible. Defaults to the 'keycloak_realm' URI -->
-	<variable name="keycloak_realm_external" defaultValue="${keycloak_realm_external}" />
+	<variable name="keycloak_realm_external" defaultValue="${keycloak_realm}" />
 	<!-- Client secret for cdo-mondaine client in keycloak -->
 	<variable name="keycloak_client_secret" defaultValue="329ab44b-087b-44d2-89b7-da139d32a7b1" />
-	<include location="keycloak.xml" optional="true" />
+	<!--  default keystore password, please change somewhere -->
+	<variable name="keystore_password" defaultValue="password" />
+	
+	
+	<include location="dev.xml" optional="true" />
 
 
     <featureManager>
 <!--         <feature>microProfile-3.2</feature> -->
         <feature>appSecurity-3.0</feature>
-        <feature>transportSecurity-1.0</feature>
+<!--         <feature>transportSecurity-1.0</feature> -->
         <feature>openIDConnectClient-1.0</feature>
         <feature>jaxrs-2.1</feature>
         <feature>cdi-2.0</feature>
@@ -65,17 +69,19 @@
     	inboundPropagation="supported"
     	trustAliasName="esdl-mapeditor"
     	trustStoreRef="defaultKeyStore"
+    	
+    	discoveryEndpointUrl="${keycloak_realm}/.well-known/openid-configuration"
 	    
-    	issuerIdentifier="${keycloak_realm},http://localhost:8080/auth/realms/esdl-mapeditor"
+		/>
+	<!--     	
+		Replace discoveryEndpointURL with the lines below to make a localhost docker keycloak setup work.
+	
+    	issuerIdentifier="${keycloak_realm},${keycloak_realm_external}"
 		authorizationEndpointUrl="${keycloak_realm_external}/protocol/openid-connect/auth"
 		tokenEndpointUrl="${keycloak_realm}/protocol/openid-connect/token"		
 		userInfoEndpointEnabled="true" 
 		userInfoEndpointUrl="${keycloak_realm}/protocol/openid-connect/userinfo"
 		httpsRequired="false"
-		/>
-	<!--     	
-		userInfoEndpointEnabled="true" 
-		userInfoEndpointUrl="${keycloak_realm}/protocol/openid-connect/userinfo"
 	-->
 
 	
@@ -116,11 +122,15 @@
 <!-- 	</authFilter> -->
 
     <!-- This is the keystore that will be used by SSL and by JWT. -->
-    <keyStore id="defaultKeyStore" location="public.p12" type="PKCS12" password="admin123!" trustDefaultCerts="true" />
+    <ssl id="defaultSSLConfig" keyStoreRef="defaultKeyStore" verifyHostname="false" trustDefaultCert="true" />
+    <keyStore id="defaultKeyStore" location="public.p12" type="PKCS12" password="${keystore_password}" 
+    	      trustDefaultCerts="true" 
+    	      pollingRate="1m" 
+    	      updateTrigger="polled" />
 
 
   <!-- com.ibm.ws.webcontainer*=all:HTTPChannel=all:GenericBNF=all -->
-	<logging traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all=enabled:nl.tno.*=all" /> <!-- maxFiles="8" maxFileSize="200"  -->
+	<logging traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all=enabled:nl.tno.*=all" consoleFormat="simple" maxFileSize="200"/> <!-- maxFiles="8"   -->
 
 
 </server>
