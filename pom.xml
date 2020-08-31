@@ -5,7 +5,7 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nl.tno.esdl</groupId>
-	<artifactId>mondaine-hub</artifactId>
+	<artifactId>esdl-drive</artifactId>
 	<version>1.0-SNAPSHOT</version>
 	<packaging>war</packaging>
 	<properties>
@@ -15,7 +15,8 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<maven.compiler.target>1.8</maven.compiler.target>
 		<maven.compiler.source>1.8</maven.compiler.source>
-		<final.name>hub</final.name>
+		<final.name>esdl-drive</final.name>
+		<server.name>esdl-drive-server</server.name>
 		<failOnMissingWebXml>false</failOnMissingWebXml>
 	</properties>
 
@@ -37,21 +38,22 @@
 	<!-- <version>18.0.0.2</version> -->
 	<!-- <type>zip</type> -->
 	<!-- </assemblyArtifact> -->
-	<dependencyManagement>
-		<dependencies>
-			<dependency>
-				<groupId>io.openliberty.features</groupId>
-				<artifactId>features-bom</artifactId>
-				<version>${openliberty.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
+<!-- 	<dependencyManagement> -->
+<!-- 		<dependencies> -->
+<!-- 			<dependency> -->
+<!-- 				<groupId>io.openliberty.features</groupId> -->
+<!-- 				<artifactId>features-bom</artifactId> -->
+<!-- 				<version>${openliberty.version}</version> -->
+<!-- 				<type>pom</type> -->
+<!-- 				<scope>import</scope> -->
+<!-- 			</dependency> -->
+<!-- 		</dependencies> -->
+<!-- 	</dependencyManagement> -->
 	<dependencies>
 		<dependency>
 			<groupId>io.openliberty.features</groupId>
 			<artifactId>openidConnectClient-1.0</artifactId>
+			<version>${openliberty.version}</version> 
 			<type>esa</type>
 			<scope>provided</scope>
 		</dependency>
@@ -117,7 +119,7 @@
 
 	</dependencies>
 	<build>
-		<finalName>hub</finalName>
+		<finalName>${final.name}</finalName>
 	</build>
 	<profiles>
 		<profile>
@@ -152,7 +154,7 @@
 							<appArchive>${project.build.directory}/${final.name}.war
 							</appArchive>
 							<include>runnable</include>
-							<serverName>${final.name}</serverName>
+							<serverName>${server.name}</serverName>
 							<bootstrapProperties>
 								<project.name>${final.name}</project.name>
 								<!-- <jwt.issuer>https://server.example.com</jwt.issuer> -->

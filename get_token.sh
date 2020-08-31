@@ -1,14 +1,10 @@
-##
-##!/bin/bash
+#!/bin/bash
 
 if [ $# -lt 1 ]; then
   echo 1>&2 "Usage: . $0 <username>"
   echo 1>&2 "  options:"
   echo 1>&2 "     -v (at the end)  be verbose"
   echo 1>&2 " The token will be stored in \$TOKEN environment variable "
-#  echo 1>&2 "    hostname: localhost:8081"
-#  echo 1>&2 "    realm:keycloak-demo"
-#  echo 1>&2 "    clientid:demo"
   
   exit 1 
 fi
