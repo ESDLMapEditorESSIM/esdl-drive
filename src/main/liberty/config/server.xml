@@ -4,7 +4,7 @@
 	
 	<!--  These variable can be overriden by Env variables, e.g. KEYCLOAK_REALM -->
 	<!-- keycloak_realm URI, accessible by this service -->
-	<variable name="keycloak_realm" defaultValue="https://idm.hesi.energy/auth/realms/esdl-mapeditor" />
+	<variable name="keycloak_realm" defaultValue="http://keycloak:8080/auth/realms/esdl-mapeditor" />
 	<!-- Optinal for localhost deployment, Keycloak realm URI, external accessible. Defaults to the 'keycloak_realm' URI -->
 	<variable name="keycloak_realm_external" defaultValue="${keycloak_realm}" />
 	<!-- Client secret for cdo_mondaine client in keycloak -->
