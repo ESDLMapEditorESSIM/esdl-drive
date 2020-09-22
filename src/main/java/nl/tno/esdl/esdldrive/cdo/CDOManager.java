@@ -261,12 +261,19 @@ public class CDOManager {
 			for (Diff diff: comparison.getDifferences()) {
 				recursiveMerge(diff, monitor, mergerRegistry,0);
 			}
+			
+			if (commitMessage == null) {
+				commitMessage = "Update";
+			}
 			commitMessage += " (" + comparison.getDifferences().size() + " changes)";
 			System.out.println("Resource modified?: " + fromDatabase.isModified());
 			transaction.setCommitComment(commitMessage);
 			commitInfo = transaction.commit();
 		} catch (CDOResourceNodeNotFoundException | InvalidURIException e) {
 			// New file or forced overwrite
+			if (commitMessage == null) {
+				commitMessage = "Initial commit";
+			}
 			transaction.setCommitComment(commitMessage);
 			CDOResource resource = transaction.getOrCreateResource(resourceName); // $NON-NLS-1$
 			// Work with the resource and commit the transaction
