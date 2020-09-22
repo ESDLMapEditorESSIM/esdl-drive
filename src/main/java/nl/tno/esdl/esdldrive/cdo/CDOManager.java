@@ -612,6 +612,7 @@ public class CDOManager {
 				
 		if (resourceNode instanceof CDOResourceFolder || fileName.equals("/")) {
 			map.put("type", "folder");
+			map.put("writable", permission.isWritable());
 			return map;
 		}
 		

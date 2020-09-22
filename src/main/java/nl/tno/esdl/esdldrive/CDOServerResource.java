@@ -189,11 +189,8 @@ public class CDOServerResource {
 				ByteArrayInputStream resourceInputStream = new ByteArrayInputStream(result.toByteArray()); 
 				
 				
-				System.out.println(commitMessage);
-				String generatedCommitMessage = commitMessage;
-				if (commitMessage == null) {
-					generatedCommitMessage = "Initial upload";
-				}
+				System.out.println("Commit message:" + commitMessage);
+				
 				
 				// create hashmap to speed up reading
 				HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
@@ -203,7 +200,7 @@ public class CDOServerResource {
 				resource.load(resourceInputStream, null);
 				System.out.println("Done reading contents of " + resourceURL);
 				EObject rootEObject = resource.getContents().get(0);
-				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject, generatedCommitMessage, overwrite);
+				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject, commitMessage, overwrite);
 				System.out.println("Saved " + resourceURL + ", commitInfo: " + commitInfo);
 				long timeStamp = commitInfo.getTimeStamp();
 				return Response.ok().lastModified(new Date(timeStamp)).build();
