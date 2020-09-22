@@ -43,9 +43,9 @@ In localhost deployements of keycloak in docker you need to make a difference be
 `keycloak_realm_external` defaults to `{keycloak_realm}`
 
 ####  KEYCLOAK client secret for cdo-mondaine
-The ESDL Drive uses `cdo-mondaine` as client. It secret is defined using:
+The ESDL Drive uses `cdo-mondaine` as client name in keycloak. Its associated secret is defined using:
 `keycloak_client_secret`. It defaults to the one used for the localhost deployment in docker.
-Users need the group of `cdo_read` to read and write to the ESDLDrive.
+Users need the group of `cdo_read` to read and write to the ESDLDrive. Normally everybody in the default keycloak setup for localhost has this role.
 
 #### Keytool password
 All keys and certificates (see certificates/certificate.md) are stored in a java keystore. You need the keytool password to access this keystore.

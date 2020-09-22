@@ -31,6 +31,7 @@ import javax.inject.Inject;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.HEAD;
 import javax.ws.rs.PUT;
@@ -65,11 +66,11 @@ import esdl.EsdlPackage;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.HubPermission;
-import nl.tno.esdl.esdldrive.cdo.PermissionDeniedException;
 import nl.tno.esdl.esdldrive.cdo.ResourceMetadata;
 import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
+import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 
 /**
  * @author werkmane
@@ -89,8 +90,12 @@ public class CDOServerResource {
 	@Path("/resource/{resourceURL:.+}")
 	@Produces(MediaType.APPLICATION_XML)
 	@RolesAllowed("cdo_read")
-	//@Parameter(allowEmptyValue = false, in = ParameterIn.PATH, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces")
-	public Response getResource(@PathParam("resourceURL") String resourceURL) {
+	@Operation(description = "Retrieves a ESDL-file from the server")
+	@Parameters({
+		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, without spaces or encoded spaces", example = "/Project/MyProjectFolder/MyEnergySystem.esdl"),
+		@Parameter(allowEmptyValue = true, name = "revision", in = ParameterIn.QUERY, description = "The revision to get from this resource, defined as the creation time of the revision in EPOCH milliseconds", example = "1598367140380")
+	})
+	public Response getResource(@PathParam("resourceURL") String resourceURL, @QueryParam("revision") Long revision) {
 		// String resourceURL = "ewoud/test1.esdl";
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
@@ -111,25 +116,25 @@ public class CDOServerResource {
 		log.info("getResource() ResourceURL: " + resourceURL);
 		// try to find it in the cache
 		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
-		if (cachedModel != null) {
+		if (cachedModel != null && revision == null) {
+			log.fine("getResource(): Retrieving model from cache");
 			return Response.ok(cachedModel).build();
 		}
-		try (ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL)) {
+		try {
+			ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL, revision);
 			CDOResource cdoResource = resourceResult.getCDOResource();
 			String xmlString = cdoManager.convertToXMLString(cdoResource);
 			//log.info("Retrieved: " + xmlString);
 			if (xmlString == null) {
-				resourceResult.close();
 				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
 			}
 			cdoManager.setCache(resourceURL,xmlString, cdoResource);
 			Date lastModified = resourceResult.getLastModified();
-			resourceResult.close();
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
 			e.printStackTrace();
-			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
+			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
 		}
 	}
 
@@ -140,21 +145,21 @@ public class CDOServerResource {
 	@RolesAllowed("cdo_read")
 	@Operation(description = "Retrieves a ESDL-file from the server")
 	@Parameters(@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl"))
-	@APIResponses(@APIResponse(responseCode = "200", description = "Stores a resource in the repository using the supplied URI. Only response is a HTTP status code"))
+	@APIResponses({
+			@APIResponse(responseCode = "200", description = "Stores a resource in the repository using the supplied URI. Only response is a HTTP status code"),
+			@APIResponse(responseCode = "500", description = "Saving failed.")
+	})
 	public Response putResource(
-			@PathParam("resourceURL") 
-			String resourceURL,
-			@QueryParam("commitMessage") 
-			String commitMessage,
-			
+			@PathParam("resourceURL") String resourceURL,
+			@QueryParam("commitMessage") String commitMessage,
+			@QueryParam("overwrite") @DefaultValue("false") Boolean overwrite,
 			@RequestBody(description = "ESDL content in XML format", name = "stream", 
 				content = {
 					@Content(example = "<?xml version=\"1.0\" encoding=\"UTF-8\">\n<esdl:EnergySystem ...></esdl:EnergySystem", 
 							schema = @Schema(required = true, format="XML String", description = "ESDL content"))
 				}
-			) 
+			)
 			InputStream stream) {
-		// String resourceURL = "ewoud/test1.esdl";
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
 		}
@@ -184,11 +189,9 @@ public class CDOServerResource {
 				ByteArrayInputStream resourceInputStream = new ByteArrayInputStream(result.toByteArray()); 
 				
 				
-				
-				String generatedCommitMessage = null;
-				if (commitMessage != null) {
-					generatedCommitMessage = commitMessage;
-				} else {
+				System.out.println(commitMessage);
+				String generatedCommitMessage = commitMessage;
+				if (commitMessage == null) {
 					generatedCommitMessage = "Initial upload";
 				}
 				
@@ -200,7 +203,7 @@ public class CDOServerResource {
 				resource.load(resourceInputStream, null);
 				System.out.println("Done reading contents of " + resourceURL);
 				EObject rootEObject = resource.getContents().get(0);
-				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject, generatedCommitMessage);
+				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject, generatedCommitMessage, overwrite);
 				System.out.println("Saved " + resourceURL + ", commitInfo: " + commitInfo);
 				long timeStamp = commitInfo.getTimeStamp();
 				return Response.ok().lastModified(new Date(timeStamp)).build();

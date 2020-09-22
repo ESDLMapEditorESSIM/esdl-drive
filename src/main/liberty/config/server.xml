@@ -15,7 +15,7 @@
 	
 	
 	<include location="keycloak.xml" optional="true" />
-	<include location="dev.xml" optional="true" />
+	<include location="dev.xml" optional="true" onConflict="REPLACE" />
 
 
     <featureManager>

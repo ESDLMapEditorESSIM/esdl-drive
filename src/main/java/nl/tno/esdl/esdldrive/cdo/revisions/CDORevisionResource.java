@@ -31,7 +31,6 @@ import javax.ws.rs.core.Response.Status;
 import org.eclipse.emf.cdo.CDOObjectHistory;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.eresource.CDOResource;
-import org.eclipse.emf.cdo.view.CDOView;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
@@ -73,9 +72,9 @@ public class CDORevisionResource {
 		
 		String ret = "";
 		log.info("listHistory() ResourceURL: " + resourceURL);
-		try (ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL)) {
+		try {
+			ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL);
 			CDOResource cdoResource = resourceResult.getCDOResource();
-			CDOView view = resourceResult.getView();
 			CDOObjectHistory cdoHistory = cdoResource.cdoHistory();
 			//cdoHistory.getManager().addCommitInfoHandler(new TextCommitInfoLog(System.out));
 			cdoHistory.triggerLoad();

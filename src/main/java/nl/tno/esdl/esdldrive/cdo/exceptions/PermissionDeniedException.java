@@ -14,7 +14,7 @@
  *      TNO
  */
 
-package nl.tno.esdl.esdldrive.cdo;
+package nl.tno.esdl.esdldrive.cdo.exceptions;
 
 public class PermissionDeniedException extends Exception {
 	private static final long serialVersionUID = 300769009167117865L;

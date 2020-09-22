@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeSet;
 import java.util.logging.Logger;
 
 import javax.annotation.security.RolesAllowed;
@@ -43,7 +44,10 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
 
+import org.eclipse.emf.cdo.common.commit.CDOCommitHistory.TriggerLoadElement;
+import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
+import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CommitException;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
@@ -52,9 +56,10 @@ import com.ibm.websphere.security.openidconnect.token.IdToken;
 import nl.tno.esdl.esdldrive.browser.BrowserNode.BrowserNodeType;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
-import nl.tno.esdl.esdldrive.cdo.PermissionDeniedException;
+import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
+import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 
 /**
  *
@@ -79,7 +84,8 @@ public class BrowserController {
 		delete_node,
 		create_node,
 		rename_node,
-		get_content
+		get_content,
+		get_revisions
 	}
 	
 	private enum CreateType {
@@ -121,6 +127,8 @@ public class BrowserController {
         switch(op) {
 		case get_node:
 			if (id.equals("#")) {
+				// ensure that all folders are present in the browser
+				cdoManager.ensureUserFoldersPresent(userInfo);
 				
 				JsonArray children = getFolderContents(userInfo, "/");
 				
@@ -131,7 +139,7 @@ public class BrowserController {
 						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();
 				jsonObject = Json.createArrayBuilder().add(root).build();
-			} else {
+			} else {				
 				jsonObject = getFolderContents(userInfo, id);
 				
 			}
@@ -239,6 +247,33 @@ public class BrowserController {
 				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 			}
 			break;	
+		case get_revisions:
+			try {
+				TreeSet<CDOCommitInfo> commits = cdoManager.getRevisions(userInfo, id);
+				CDOResource cdoResource = cdoManager.getResource(userInfo, id).getCDOResource();
+				JsonArrayBuilder array = Json.createArrayBuilder();
+				for (CDOCommitInfo info : commits) {
+					JsonObjectBuilder commit = Json.createObjectBuilder();
+					if (commit instanceof TriggerLoadElement) {
+						commit.add("user", info.getUserID()==null?"":info.getUserID())
+						.add("message", info.getComment()==null?"Load more history":info.getComment())
+						.add("time", info.getTimeStamp())
+						.add("branch", "");
+					} else {
+						commit.add("user", info.getUserID()==null?"Unknown user":info.getUserID())
+						.add("message", info.getComment()==null?"No message":info.getComment())
+						.add("time", info.getTimeStamp())
+						.add("branch", info.getBranch()==null?"":info.getBranch().getName());
+					}
+					array.add(commit.build());
+				}
+				jsonObject = Json.createObjectBuilder().add("commits", array).add("path", id).add("name", cdoResource.getName()).build();
+			} catch (PermissionDeniedException e) {
+				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
+			} catch (CDOResourceNodeNotFoundException e) {
+				return Response.status(Status.NOT_FOUND).entity(generateError("Resource not found")).build();
+			}
+			break;
 		default:
 			String auth = "Hello " + token.getSubject() + " alias " + token.getClaim("email") + ", you are in group: " + token.getClaim("user_group");
 	    	jsonObject = Json.createObjectBuilder().add("auth", auth).build();
