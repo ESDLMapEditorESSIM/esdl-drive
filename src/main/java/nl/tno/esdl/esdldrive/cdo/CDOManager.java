@@ -71,11 +71,8 @@ import org.eclipse.emf.common.util.ECollections;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.compare.Comparison;
-import org.eclipse.emf.compare.Conflict;
 import org.eclipse.emf.compare.Diff;
 import org.eclipse.emf.compare.EMFCompare;
-import org.eclipse.emf.compare.internal.merge.MergeMode;
-import org.eclipse.emf.compare.internal.merge.MergeOperation;
 import org.eclipse.emf.compare.merge.IMerger;
 import org.eclipse.emf.compare.merge.IMerger.Registry;
 import org.eclipse.emf.compare.scope.DefaultComparisonScope;
@@ -613,6 +610,7 @@ public class CDOManager {
 		if (resourceNode instanceof CDOResourceFolder || fileName.equals("/")) {
 			map.put("type", "folder");
 			map.put("writable", permission.isWritable());
+			map.put("path", fileName);
 			return map;
 		}
 		
