@@ -16,8 +16,14 @@
 
 package nl.tno.esdl.esdldrive.cdo;
 
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.stream.JsonParser;
 
 import com.ibm.websphere.security.openidconnect.token.IdToken;
 
@@ -28,10 +34,30 @@ public class UserInfo {
 	private static final String USER_GROUP_PATH_CLAIM = "user_group_path";
 	private static final String PERSONAL_FOLDER_PREFIX = "/Users/";
 	
+	
+	/**
+	 * Associated Json token:
+	 *  
+	 *	 "resource_access": {
+	 *	    "cdo-mondaine": {
+	 *	      "roles": [
+	 *	        "esdl-drive-admin"
+	 *	      ]
+	 *	    },
+	 *	  } ...
+	 * 
+	 */
+	private static final String RESOURCE_ACCESS_CLAIM = "resource_access";
+	private static final String CLIENT_ID = "cdo-mondaine";
+	private static final String RESOURCE_ACCESS_ROLES_SUB_CLAIM = "roles";
+	private static final String ESDL_DRIVE_ROLES_ADMIN = "esdl-drive-admin";
+	
+	
 	private final String userId;
 	private final String userName;
 	private final String fullName;
 	private final List<String> groups = new ArrayList<String>();
+	private boolean admin = false;
 	
 	@SuppressWarnings("unchecked")
 	public UserInfo(IdToken jwtToken) throws InvalidLoginInformationException {
@@ -41,6 +67,7 @@ public class UserInfo {
 			this.userId = jwtToken.getSubject();
 			this.userName = (String)jwtToken.getClaim(USER_NAME_CLAIM);
 			this.fullName = (String)jwtToken.getClaim(FULL_NAME_CLAIM); 
+			this.admin  = checkIsAdmin(jwtToken);
 			if (jwtToken.getClaim(USER_GROUP_PATH_CLAIM) != null && jwtToken.getClaim(USER_GROUP_PATH_CLAIM) instanceof List) {
 				groups.addAll((List<String>)jwtToken.getClaim(USER_GROUP_PATH_CLAIM));
 			} else {
@@ -56,6 +83,38 @@ public class UserInfo {
 
 	}
 	
+	
+	
+	/**
+	 * Parses the following jwt json:
+	 *    "resource_access": {
+	 *	    "cdo-mondaine": {
+	 *	      "roles": [
+	 *	        "esdl-drive-admin"
+	 *	      ]
+	 *	    },
+	 *	  } ...
+	 * 
+	 * 
+	 * @param jwtToken
+	 * @return
+	 */
+	@SuppressWarnings("unchecked")
+	private boolean checkIsAdmin(IdToken jwtToken) {
+		Map<String, Object> resource_access = (Map<String, Object>)jwtToken.getClaim(RESOURCE_ACCESS_CLAIM);
+		if (resource_access != null) {
+			Map<String, Object> mondaine_cdo_client_claims = (Map<String, Object>)resource_access.get(CLIENT_ID);
+			if (mondaine_cdo_client_claims != null) {
+				List<String> mondaine_cdo_client_roles = (List<String>)mondaine_cdo_client_claims.get(RESOURCE_ACCESS_ROLES_SUB_CLAIM);
+				if (mondaine_cdo_client_roles != null) { 
+					return mondaine_cdo_client_roles.contains(ESDL_DRIVE_ROLES_ADMIN);
+				}
+			}
+				
+		}
+		return false;
+	}
+
 	@Override
 	public String toString() {
 		return "UserInfo [userName=" + userName + ", fullName=" + fullName + ", groups=" + groups + ", userId=" + userId + "]";
@@ -75,6 +134,10 @@ public class UserInfo {
 
 	public String getUserId() {
 		return userId;
+	}
+	
+	public boolean isAdmin() {
+		return admin;
 	}
 
 	public class InvalidLoginInformationException extends Exception {

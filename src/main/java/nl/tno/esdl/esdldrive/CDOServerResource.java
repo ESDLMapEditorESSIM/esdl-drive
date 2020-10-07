@@ -93,9 +93,13 @@ public class CDOServerResource {
 	@Operation(description = "Retrieves a ESDL-file from the server")
 	@Parameters({
 		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, without spaces or encoded spaces", example = "/Project/MyProjectFolder/MyEnergySystem.esdl"),
-		@Parameter(allowEmptyValue = true, name = "revision", in = ParameterIn.QUERY, description = "The revision to get from this resource, defined as the creation time of the revision in EPOCH milliseconds", example = "1598367140380")
+		@Parameter(allowEmptyValue = true, name = "revision", in = ParameterIn.QUERY, description = "The revision to get from this resource, defined as the creation time of the revision in EPOCH milliseconds", example = "1598367140380"),
+		@Parameter(allowEmptyValue = true, name = "nocache", in = ParameterIn.QUERY, description = "Don't retrieve a cached version, but the real version from the database")
 	})
-	public Response getResource(@PathParam("resourceURL") String resourceURL, @QueryParam("revision") Long revision) {
+	public Response getResource(
+			@PathParam("resourceURL") String resourceURL, 
+			@QueryParam("revision") Long revision, 
+			@QueryParam("nocache") @DefaultValue("false") Boolean nocache) {
 		// String resourceURL = "ewoud/test1.esdl";
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
@@ -108,15 +112,16 @@ public class CDOServerResource {
 		}
 		
 		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
-		if (!permission.isAccessible()) {
+		//System.out.println("Admin: " + userInfo.isAdmin());
+		//System.out.println("Acessible: " + permission.isAccessible());
+		if (!(userInfo.isAdmin() || permission.isAccessible())) {
 			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
 		}
-		
-		
+				
 		log.info("getResource() ResourceURL: " + resourceURL);
 		// try to find it in the cache
 		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
-		if (cachedModel != null && revision == null) {
+		if (cachedModel != null && revision == null && !nocache) {
 			log.fine("getResource(): Retrieving model from cache");
 			return Response.ok(cachedModel).build();
 		}
@@ -128,7 +133,10 @@ public class CDOServerResource {
 			if (xmlString == null) {
 				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
 			}
-			cdoManager.setCache(resourceURL,xmlString, cdoResource);
+			if (revision == null) {
+				// currently only cache the latest version
+				cdoManager.setCache(resourceURL,xmlString, cdoResource);
+			}
 			Date lastModified = resourceResult.getLastModified();
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
@@ -174,6 +182,7 @@ public class CDOServerResource {
 		if (permission.isWritable()) {
 			
 			// put in cache: and convert to EMF model
+			String oldXML = cdoManager.getCachedModelXML(resourceURL);
 			try {
 				System.out.println("Reading contents of " + resourceURL);
 				ByteArrayOutputStream result = new ByteArrayOutputStream();
@@ -185,11 +194,16 @@ public class CDOServerResource {
 				// StandardCharsets.UTF_8.name() > JDK 7
 				String xmlString = result.toString(StandardCharsets.UTF_8.name());
 				System.out.println("Storing in cache");
+				
 				cdoManager.setCache(resourceURL, xmlString, null);
 				ByteArrayInputStream resourceInputStream = new ByteArrayInputStream(result.toByteArray()); 
 				
 				
 				System.out.println("Commit message:" + commitMessage);
+				System.out.println("Overwrite:" + overwrite);
+				
+				// OVERWRITE FOR NOW ALWAYS as merging gives issues...
+				overwrite = true;
 				
 				
 				// create hashmap to speed up reading
@@ -203,10 +217,13 @@ public class CDOServerResource {
 				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject, commitMessage, overwrite);
 				System.out.println("Saved " + resourceURL + ", commitInfo: " + commitInfo);
 				long timeStamp = commitInfo.getTimeStamp();
+
 				return Response.ok().lastModified(new Date(timeStamp)).build();
 			} catch (Exception e) {
 				log.severe("Error: " + e);
 				e.printStackTrace();
+				System.out.println("Reverting Cache to old version");
+				cdoManager.setCache(resourceURL, oldXML, null);
 				if (e instanceof PackageNotFoundException) {
 					return Response.serverError().entity(
 							"Input is not of type ESDL: XML namespaceURI is not defined or (xmlns:esdl) is different from "
