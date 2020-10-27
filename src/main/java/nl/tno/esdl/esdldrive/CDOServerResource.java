@@ -123,6 +123,7 @@ public class CDOServerResource {
 		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
 		if (cachedModel != null && revision == null && !nocache) {
 			log.fine("getResource(): Retrieving model from cache");
+			System.out.println("getResource(): Retrieving model from cache: " + resourceURL);
 			return Response.ok(cachedModel).build();
 		}
 		try {
@@ -191,7 +192,6 @@ public class CDOServerResource {
 				while ((length = stream.read(buffer)) != -1) {
 				    result.write(buffer, 0, length);
 				}
-				// StandardCharsets.UTF_8.name() > JDK 7
 				String xmlString = result.toString(StandardCharsets.UTF_8.name());
 				System.out.println("Storing in cache");
 				
@@ -202,8 +202,8 @@ public class CDOServerResource {
 				System.out.println("Commit message:" + commitMessage);
 				System.out.println("Overwrite:" + overwrite);
 				
-				// OVERWRITE FOR NOW ALWAYS as merging gives issues...
-				overwrite = true;
+				// set OVERWRITE to true to disable merging feature 
+				//overwrite = true;
 				
 				
 				// create hashmap to speed up reading
@@ -213,8 +213,7 @@ public class CDOServerResource {
 				resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
 				resource.load(resourceInputStream, null);
 				System.out.println("Done reading contents of " + resourceURL);
-				EObject rootEObject = resource.getContents().get(0);
-				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, rootEObject, commitMessage, overwrite);
+				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, resource, commitMessage, overwrite);
 				System.out.println("Saved " + resourceURL + ", commitInfo: " + commitInfo);
 				long timeStamp = commitInfo.getTimeStamp();
 
@@ -222,7 +221,7 @@ public class CDOServerResource {
 			} catch (Exception e) {
 				log.severe("Error: " + e);
 				e.printStackTrace();
-				System.out.println("Reverting Cache to old version");
+				System.out.println("Reverting Cache to old version!");
 				cdoManager.setCache(resourceURL, oldXML, null);
 				if (e instanceof PackageNotFoundException) {
 					return Response.serverError().entity(

@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,6 +82,7 @@ import org.eclipse.emf.compare.scope.DefaultComparisonScope;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
+import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
@@ -136,6 +138,9 @@ public class CDOManager {
 	
 	private ConcurrentHashMap<String, SessionDetails> sessionMap = new ConcurrentHashMap<String, SessionDetails>();
 	private Map<String, CachedModel> cache = LRUCache.newSynchronizedInstance(200);
+	private final EMFCompare emfCompare;
+	private final Registry emfCompareMergerRegistry;
+	private BasicMonitor emfCompareMonitor;
 
 	private final static CDORevisionPrefetchingPolicy BIG_PREFETCHER = CDOUtil.createRevisionPrefetchingPolicy(1000);
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
@@ -148,6 +153,10 @@ public class CDOManager {
 		log.info("From environment: " + System.getenv("CDO_SERVER_HOST"));
 		setUpCDO();
 		new SessionDetailsManager(sessionMap);
+		
+		emfCompare = EMFCompare.builder().build();
+		emfCompareMergerRegistry = IMerger.RegistryImpl.createStandaloneInstance();
+		emfCompareMonitor = new BasicMonitor(); //new BasicMonitor.Printing(System.out);
 	}
 	
 	public CDONet4jSession getSession(UserInfo userInfo) {
@@ -207,7 +216,7 @@ public class CDOManager {
 	}
 
 
-	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, EObject rootObject, String commitMessage, boolean overwrite)
+	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, Resource uploadedResource, String commitMessage, boolean overwrite)
 			throws ConcurrentAccessException, CommitException, PermissionDeniedException, IllegalStateException, TimeoutException, InterruptedException {
 		log.info("Starting storeResource transaction " + resourceName);
 		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
@@ -224,47 +233,48 @@ public class CDOManager {
 		try {
 			if (overwrite) {
 				// overwrite the file, not merge the differences
-				commitInfo = storeFullResource(transaction, resourceName, rootObject, commitMessage);
+				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
 			} else {
 				// try merging differences
 				CDOResource fromDatabase = transaction.getResource(resourceName);
-				//fromDatabase.cdoPrefetch(1);
-				//fromDatabase.setTrackingModification(true);
 				// file exists in database. Store only the differences, which is significantly faster. 
 				EObject esFromDatabase = fromDatabase.getContents().get(0);
-				EMFCompare compare = EMFCompare.builder().build();
-				Registry mergerRegistry = IMerger.RegistryImpl.createStandaloneInstance();
-				Printing monitor = new BasicMonitor.Printing(System.out);
+				
 				// Create a URI for the uploaded resource, this is needed in the compare
-				rootObject.eResource().setURI(URI.createURI(resourceName));
-				if (esFromDatabase instanceof EnergySystem && rootObject instanceof EnergySystem) {
+				uploadedResource.setURI(URI.createURI(resourceName));
+				EObject uploadedEObject = uploadedResource.getContents().get(0);
+				if (esFromDatabase instanceof EnergySystem && uploadedEObject instanceof EnergySystem) {
 					EnergySystem energySystem = (EnergySystem) esFromDatabase;
-					EnergySystem uploadedES = (EnergySystem) rootObject;
+					EnergySystem uploadedES = (EnergySystem) uploadedEObject;
 					CDORevision esRevision = energySystem.cdoRevision(true);
 					int version = esRevision.getVersion();
 					uploadedES.setVersion(Integer.toString(version + 1));
+					// update ES version manually: this triggers an update of the EnergySystem CDO object
+					// which makes it easier to load revisions of the whole ES as any change also
+					// triggers an update to the ES.
 					System.out.println("Setting ES version to " + uploadedES.getVersion());
 				}
-				System.out.println("Database: " + esFromDatabase + ", input: " + rootObject);
+				System.out.println("Database: " + esFromDatabase + ", input: " + uploadedEObject);
 				// Calculate differences and merge difference. Left = database, right is updated model
-				DefaultComparisonScope scope = new DefaultComparisonScope(esFromDatabase, rootObject, null);
+				DefaultComparisonScope scope = new DefaultComparisonScope(fromDatabase, uploadedResource, null);
 				System.out.println("Creating comparision...");
-				Comparison comparison = compare.compare(scope, monitor);
-				// conflicts only happen in three-way compare, see org.eclipse.emf.compare.Conflict 
-	//			String conflicts = "";
-	//			for(Conflict conflict: comparison.getConflicts()) {
-	//				System.out.println(conflict);
-	//				Diff diff = conflict.getDifferences().get(0);
-	//				conflicts += conflict.getKind() + " " + diff.toString() + ", " ;
-	//			}
-				//comparison.getEquivalences().get(0).get
+				Comparison comparison = emfCompare.compare(scope); //, emfCompareMonitor);
 				if (comparison.getConflicts().size() > 0) {
+					// conflicts only happen in three-way compare, see org.eclipse.emf.compare.Conflict 
 					throw new MergeConfictException("Conflict(s) detected during saving.");
 				}
-				System.out.println("Merging differences");
+				System.out.println("Merging differences: " + comparison.getDifferences().size() );
+				LinkedList<Diff> diffs = new LinkedList<Diff>();
 				for (Diff diff: comparison.getDifferences()) {
-					recursiveMerge(diff, monitor, mergerRegistry,0);
+					createMergeDiffList(diffs, diff, 0);
 				}
+				System.out.println("Diff list size: " + diffs.size() );
+				while (!diffs.isEmpty()) {
+					Diff diff = diffs.removeLast(); // iterate from tail to head
+					IMerger merger = emfCompareMergerRegistry.getHighestRankingMerger(diff);
+					merger.copyRightToLeft(diff, emfCompareMonitor);
+				}
+
 				
 				if (commitMessage == null) {
 					commitMessage = "Update";
@@ -275,13 +285,14 @@ public class CDOManager {
 				commitInfo = transaction.commit();
 			}
 		} catch (CDOResourceNodeNotFoundException | InvalidURIException e) {
-			commitInfo = storeFullResource(transaction, resourceName, rootObject, commitMessage);
+			commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
 		}
 		return commitInfo;
 	}
 
 	/**
 	 * Writes a rootObject to the database
+	 * Only supports one root object in the uploadedResource
 	 * @param transaction
 	 * @param resourceName
 	 * @param rootObject
@@ -290,7 +301,7 @@ public class CDOManager {
 	 * @throws ConcurrentAccessException
 	 * @throws CommitException
 	 */
-	private CDOCommitInfo storeFullResource(CDOTransaction transaction, String resourceName, EObject rootObject,
+	private CDOCommitInfo storeFullResource(CDOTransaction transaction, String resourceName, Resource uploadedResource,
 			String commitMessage) throws ConcurrentAccessException, CommitException {
 		// New file or forced overwrite
 		if (commitMessage == null) {
@@ -301,9 +312,9 @@ public class CDOManager {
 		// Work with the resource and commit the transaction
 		if (resource.getContents().size() == 1) {
 			// overwrite
-			resource.getContents().set(0, rootObject);
+			resource.getContents().set(0, uploadedResource.getContents().get(0));
 		} else {
-			resource.getContents().add(rootObject);
+			resource.getContents().add(uploadedResource.getContents().get(0));
 		}
 		System.out.println("Committing transaction");
 		CDOCommitInfo commitInfo = transaction.commit();
@@ -313,14 +324,16 @@ public class CDOManager {
 		return commitInfo;
 	}
 	
-	private void recursiveMerge(Diff diff, BasicMonitor monitor, Registry mergerRegistry, int depth) {
-		System.out.println("RecursiveMerge depth:"+depth);
-		for (Diff req: diff.getRequiredBy()) {
-			recursiveMerge(req, monitor, mergerRegistry, depth+1);
+	
+	private void createMergeDiffList(LinkedList<Diff> diffs, Diff diff, int depth) {
+		diffs.addLast(diff);
+		for (Diff req: diff.getRequires()) {
+			if (!diffs.contains(req)) { 
+				diffs.addLast(req);
+				createMergeDiffList(diffs, req, depth+1);
+				System.out.println("RecursiveMerge depth:"+depth+1);
+			}
 		}
-		IMerger merger = mergerRegistry.getHighestRankingMerger(diff);
-		merger.copyRightToLeft(diff, monitor);
-		
 	}
 
 	/**
@@ -356,6 +369,7 @@ public class CDOManager {
 			CDOView view = session.openView();
 			view.options().setRevisionPrefetchingPolicy(BIG_PREFETCHER);
 			if (revision!=null) {
+				// we need some special attention, as the filename might not be the same in earlier revisions
 				System.out.println("Retrieving revision " + revision);
 				CDOView revisionView = session.openView(revision);
 				if (revisionView.hasResource(cdoServerHostName)) {
@@ -373,6 +387,7 @@ public class CDOManager {
 					}
 				}
 			} else {
+				System.out.println("Retrieving from database: " + resourceName);
 				// no revision just the latest version
 				resource = view.getResource(resourceName);
 			}
@@ -399,10 +414,11 @@ public class CDOManager {
 		LocalDateTime start = LocalDateTime.now();
 		XMLResourceImpl xmlResourceImpl = new XMLResourceImpl();
 		EObject eObject = cdoResource.getContents().get(0);
-		if (eObject instanceof CDOObject) {
-			CDOObject cdoObject = (CDOObject) eObject;
-			cdoObject.cdoPrefetch(CDORevision.DEPTH_INFINITE);
-		}
+//		if (eObject instanceof CDOObject) {
+//			// prefetch of cdoResource gives timeout, but this seems to work
+//			CDOObject cdoObject = (CDOObject) eObject;
+//			cdoObject.cdoPrefetch(CDORevision.DEPTH_INFINITE);
+//		}
 		EObject copy = EcoreUtil.copy(eObject);
 		LocalDateTime stop = LocalDateTime.now();
 		log.info("Copy " + cdoResource.getPath() + " took " + Duration.between(start, stop));
@@ -595,6 +611,8 @@ public class CDOManager {
 	        }
 	      }
 	    };
+
+	
 	
 
 	@Destroyed(ApplicationScoped.class)
@@ -668,19 +686,24 @@ public class CDOManager {
 		
 		CDOResource resource = transaction.getResource(fileName);
 			
-		System.out.println("Retrieving:" + fileName);
+		System.out.println("Retrieving content summary for: " + fileName);
 		map.put("fileName", resource.getName());
 		map.put("path", fileName);
-		EObject rootObject = resource.getContents().get(0);
+		EObject rootObject = resource.getContents().get(0); // load content
+		resource.cdoHistory().setLoadCount(1);
+		resource.cdoHistory().triggerLoad();
 		if (rootObject instanceof CDOObject) {
 			CDOObject es = (CDOObject)rootObject; 
 			
-			es.cdoHistory().setLoadCount(1);
+			es.cdoHistory().setLoadCount(2);
 			es.cdoHistory().triggerLoad();
 			while (es.cdoHistory().isLoading()) {
 				es.cdoHistory().waitWhileLoading(10);
 			}
-			System.out.println("History size count:" + resource.cdoHistory().size());
+			while (resource.cdoHistory().isLoading()) {
+				resource.cdoHistory().waitWhileLoading(10);
+			}
+			System.out.println("History size count: " + resource.cdoHistory().size() + "." + es.cdoHistory().size());
 			CDOCommitInfo commitInfo = es.cdoHistory().getFirstElement();
 			if (commitInfo != null) {
 				String commit = "";
@@ -688,12 +711,13 @@ public class CDOManager {
 				commit += " / " + commitInfo.getUserID();
 				commit += commitInfo.getComment()==null? " / No commit message" : " / " + commitInfo.getComment();
 				map.put("lastCommit", commit);
-				map.put("revisionVersion", es.cdoRevision().getVersion());
+				map.put("revisionVersion", resource.cdoRevision().getVersion() + "." + es.cdoRevision().getVersion());
 				map.put("lastChanged", es.cdoRevision().getTimeStamp());
 			} else {
 				System.out.println("No revisions present");
 			}
 		}
+		
 		
 		// get properties of root object (EnergySystem)
 		EList<EStructuralFeature> eAllStructuralFeatures = rootObject.eClass().getEAllStructuralFeatures();
@@ -707,6 +731,7 @@ public class CDOManager {
 		
 		map.put("type", getExtension(resource.getName()));
 		map.put("writable", permission.isWritable());
+		map.put("cached", getCache().containsKey(fileName));
 		return map;
 	}
 	
@@ -884,15 +909,14 @@ public class CDOManager {
 			CDONet4jSession session = getSession(userInfo);
 			CDOView view = session.openView();
 			CDOResource resource = view.getResource(path, true);
-			CDOID cdoID = resource.cdoID();
 			EObject eObject = resource.getContents().get(0); // init Resource by loading the root
 			CDOObjectHistory resourceHistory = resource.cdoHistory();
 			resourceHistory.setLoadCount(20);
 			resourceHistory.setAppendingTriggerLoadElement(true);
 			resourceHistory.triggerLoad();
-			if (eObject instanceof EnergySystem) {
-				EnergySystem energySystem = (EnergySystem) eObject;
-				CDOObjectHistory esHistory = energySystem.cdoHistory();
+			if (eObject instanceof CDOObject) {
+				CDOObject rootObject = (CDOObject) eObject;
+				CDOObjectHistory esHistory = rootObject.cdoHistory();
 				esHistory.setLoadCount(20);
 				esHistory.setAppendingTriggerLoadElement(true);
 				esHistory.triggerLoad();

@@ -46,6 +46,7 @@ import javax.ws.rs.core.SecurityContext;
 
 import org.eclipse.emf.cdo.common.commit.CDOCommitHistory.TriggerLoadElement;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
+import org.eclipse.emf.cdo.common.id.CDOID;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CommitException;
@@ -251,6 +252,7 @@ public class BrowserController {
 			try {
 				TreeSet<CDOCommitInfo> commits = cdoManager.getRevisions(userInfo, id);
 				CDOResource cdoResource = cdoManager.getResource(userInfo, id).getCDOResource();
+				
 				JsonArrayBuilder array = Json.createArrayBuilder();
 				for (CDOCommitInfo info : commits) {
 					JsonObjectBuilder commit = Json.createObjectBuilder();
@@ -294,11 +296,12 @@ public class BrowserController {
 //        	System.out.println("Groups: " + groups);
 //        }
         
-        System.out.println("Browser returning (" + op +"): " + jsonObject);
+        //System.out.println("Browser returning (" + op +"): " + jsonObject);
         return Response.accepted(jsonObject).build();
     }
     
     private void convertToActualType(JsonObjectBuilder contentBuilder, String key, Object value) {
+    	if (value == null) return;
     	if (value instanceof String) {
 			contentBuilder.add(key, (String)value);
 		} else if (value instanceof Integer) {
@@ -307,6 +310,8 @@ public class BrowserController {
 			contentBuilder.add(key, (Boolean)value);
 		} else if (value instanceof Float) {
 			contentBuilder.add(key, (Float)value);
+		} else if (value instanceof Double) {
+			contentBuilder.add(key, (Double)value);
 		} else if (value instanceof Long) {
 			contentBuilder.add(key, (Long)value);
 		} else if (value instanceof BigInteger) {
@@ -314,7 +319,7 @@ public class BrowserController {
 		} else if (value instanceof BigDecimal) {
 			contentBuilder.add(key, (BigDecimal)value);
 		} else {
-			log.info("Ignoring " + key);
+			log.info("Ignoring " + key + ", value: " + value);
 		}
 		
 	}
