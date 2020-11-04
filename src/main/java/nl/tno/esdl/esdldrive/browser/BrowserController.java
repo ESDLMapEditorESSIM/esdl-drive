@@ -46,10 +46,17 @@ import javax.ws.rs.core.SecurityContext;
 
 import org.eclipse.emf.cdo.common.commit.CDOCommitHistory.TriggerLoadElement;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
-import org.eclipse.emf.cdo.common.id.CDOID;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CommitException;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 import com.ibm.websphere.security.openidconnect.token.IdToken;
@@ -57,13 +64,18 @@ import com.ibm.websphere.security.openidconnect.token.IdToken;
 import nl.tno.esdl.esdldrive.browser.BrowserNode.BrowserNodeType;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
-import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 
 /**
- *
+ * @author werkmane
+ * 
+ * This Resource manages the browsing through the CDO repository.
+ * You can query a path, and the {@link BrowserController} will return detailed information about it
+ * 
+ * The API is based on the API used in jsTree as that is the interface element used in the application
+ * 
  */
 @Path("/browse")
 @ApplicationScoped
@@ -97,6 +109,23 @@ public class BrowserController {
     @GET
     @RolesAllowed("cdo_read")
     @Produces(MediaType.APPLICATION_JSON)
+    @org.eclipse.microprofile.openapi.annotations.Operation(summary = "Browse through the repository files and folders and get information about these files",
+    	description="This endpoint is used in combination with a JSTree to create a file browser for the repository. The API is based on JSTree's API")
+    @Parameters({
+    	@Parameter(allowEmptyValue = false, name = "operation", in = ParameterIn.QUERY, description = ">The operation to execute\nOperation:\\n * `get_node` - Gets a listing of a folder \\n * `get_content` - Get a content description of a file", 
+    			schema = @Schema(enumeration = {"get_node", "move_node", "copy_node", "delete_node", "create_node", "rename_node", "get_content", "get_revisions"}, 
+    			description = "Operation:\n * `get_node` - Gets a listing of a folder \n * `get_content` - Get a content description of a file"), 
+    			example = "get_node"),
+    	@Parameter(allowEmptyValue = false, name = "id", in = ParameterIn.QUERY, description = "The path or file to get information from", schema = @Schema(type = SchemaType.STRING), example= "/Projects"),
+    	@Parameter(allowEmptyValue = true, name = "text", in = ParameterIn.QUERY, description = "In case of renaming (rename_node), its new name", schema = @Schema(type = SchemaType.STRING)),
+    	@Parameter(allowEmptyValue = true, name = "type", in = ParameterIn.QUERY, description = "In case of creating new nodes (create_node), the type of node (e.g. folder)", schema = @Schema(type = SchemaType.STRING)),
+    	@Parameter(allowEmptyValue = true, name = "parent", in = ParameterIn.QUERY, description = "In case of copying or moving files or folders (copy_node or move_node), the path of the parent folder where it needs to move/copy", schema = @Schema(type = SchemaType.STRING))
+    })
+    @APIResponses({
+    	@APIResponse(responseCode = "202", description = "JSON response for the query", content = @Content(mediaType = "application/json")),
+		@APIResponse(responseCode = "400", description = "Insufficient access to browse the database"),
+		@APIResponse(responseCode = "500", description = "Some internal server error")
+    })
     public Response browse(
     		@Context SecurityContext securityContext, 
     		@QueryParam("operation") String operation,

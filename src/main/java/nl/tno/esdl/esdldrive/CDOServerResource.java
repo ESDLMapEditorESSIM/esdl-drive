@@ -52,6 +52,7 @@ import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
@@ -74,6 +75,9 @@ import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 
 /**
  * @author werkmane
+ * 
+ * 
+ * This JAX-RS resource manages the up and download of ESDL-files
  */
 
 @Path("/")
@@ -90,11 +94,11 @@ public class CDOServerResource {
 	@Path("/resource/{resourceURL:.+}")
 	@Produces(MediaType.APPLICATION_XML)
 	@RolesAllowed("cdo_read")
-	@Operation(description = "Retrieves a ESDL-file from the server")
+	@Operation(summary = "Retrieves a ESDL-file from the server", description = "It loads the ESDL-file from the cache, or if not available or 'nocache=true', loads it from the database. If a revision=[EpochMilliseconds] is added to the request URI it will load the version of this Energy system at that time, if available.")
 	@Parameters({
-		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, without spaces or encoded spaces", example = "/Project/MyProjectFolder/MyEnergySystem.esdl"),
-		@Parameter(allowEmptyValue = true, name = "revision", in = ParameterIn.QUERY, description = "The revision to get from this resource, defined as the creation time of the revision in EPOCH milliseconds", example = "1598367140380"),
-		@Parameter(allowEmptyValue = true, name = "nocache", in = ParameterIn.QUERY, description = "Don't retrieve a cached version, but the real version from the database")
+		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/Projects/MyProject/MyEnergySystem.esdl"),
+		@Parameter(allowEmptyValue = true, name = "revision", in = ParameterIn.QUERY, description = "The revision to get from this resource, defined as the creation time of the revision in EPOCH milliseconds"),
+		@Parameter(allowEmptyValue = true, name = "nocache", in = ParameterIn.QUERY, description = "If true, don't retrieve a cached version, but the version from the database", schema = @Schema(defaultValue = "false", type = SchemaType.BOOLEAN))
 	})
 	public Response getResource(
 			@PathParam("resourceURL") String resourceURL, 
@@ -152,10 +156,15 @@ public class CDOServerResource {
 	@Path("/resource/{resourceURL:.+}")
 	@Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_OCTET_STREAM})
 	@RolesAllowed("cdo_read")
-	@Operation(description = "Retrieves a ESDL-file from the server")
-	@Parameters(@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl"))
+	@Operation(summary = "Stores a ESDL-file to the ESDL Drive", description = "When a file is being saved and already exists in the database, it calculates the differences and only stores the diffences. When this gives issues, use 'overwrite=true' in the query to always overwrite the old version.")
+	@Parameters({
+			@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. /folder1/myEnergySystem.esdl. If it has spaces, it needs to be url encoded", example = "/Projects/MyProject/MyEnergySystem.esdl"),
+			@Parameter(allowEmptyValue = true, name = "commitMessage", in = ParameterIn.QUERY, description = "The commit message that is added to the history of this save action", example = "Cool commit message"),
+			@Parameter(allowEmptyValue = true, name = "overwrite", in = ParameterIn.QUERY, description = "Overwrite the contents in the database if the resource exists, instead of only saving the differences, this options makes storing a resource slower", example = "false", schema = @Schema(type = SchemaType.BOOLEAN))
+	})
 	@APIResponses({
 			@APIResponse(responseCode = "200", description = "Stores a resource in the repository using the supplied URI. Only response is a HTTP status code"),
+			@APIResponse(responseCode = "400", description = "Insufficient access to store the resource"),
 			@APIResponse(responseCode = "500", description = "Saving failed.")
 	})
 	public Response putResource(
@@ -210,6 +219,7 @@ public class CDOServerResource {
 				HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
 				XMLResourceImpl resource = new XMLResourceImpl();
 				resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
+				resource.getDefaultLoadOptions().put(XMLResource.OPTION_RECORD_UNKNOWN_FEATURE, Boolean.TRUE);
 				resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
 				resource.load(resourceInputStream, null);
 				System.out.println("Done reading contents of " + resourceURL);
@@ -248,7 +258,7 @@ public class CDOServerResource {
 	 * is in there, URI is marked read-write, otherwise read-only
 	 * 
 	 */
-	@Operation(description = "Returns the status of the resource, e.g. if it exists and the last-modified state")
+	@Operation(description = "Returns the status of the resource, e.g. if it exists and the last-modified state", summary = "Checks if a file exists in the database")
 	@Parameter(allowEmptyValue = false, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
 	@APIResponses({
 		@APIResponse(responseCode = "200", description = "Returns OK if the resource exists and is accessible by the user"),
@@ -310,7 +320,7 @@ public class CDOServerResource {
 	@Path("/logout")
 	@RolesAllowed("cdo_read")
 	@Produces(MediaType.APPLICATION_JSON)
-	@Operation(description = "Invalidates the user session")
+	@Operation(summary = "Invalidates the user session", description="Removes the current session with the server and the backend")
 	public Response logout(@Context HttpServletRequest servletRequest) {
 		UserInfo userInfo;
 		try {
@@ -325,6 +335,7 @@ public class CDOServerResource {
 					servletRequest.logout();
 				} catch (ServletException e) {
 					e.printStackTrace();
+					return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
 				}
 			}
 			return Response.ok().build();
@@ -337,6 +348,8 @@ public class CDOServerResource {
 	@Path("/list")
 	@Produces(MediaType.APPLICATION_JSON)
 	@RolesAllowed("cdo_read")
+	@Operation(summary = "Lists all the files the database that the logged-in user can access", deprecated = true, 
+			description= "Deprecated, as this operation becomes quite expensive then the amount of files in the database grows. Use the /store/browse endpoint instead. Returns a json array with file-path and names.")
 	public Response listResources() {
 //		log.info("Token: " + callerPrincipal);
 //		log.info("Username: " + callerPrincipal.getName());
