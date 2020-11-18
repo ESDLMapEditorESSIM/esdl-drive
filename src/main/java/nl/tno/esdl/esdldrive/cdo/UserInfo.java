@@ -16,14 +16,9 @@
 
 package nl.tno.esdl.esdldrive.cdo;
 
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import javax.json.Json;
-import javax.json.JsonObject;
-import javax.json.stream.JsonParser;
 
 import com.ibm.websphere.security.openidconnect.token.IdToken;
 
@@ -33,6 +28,7 @@ public class UserInfo {
 	private static final String FULL_NAME_CLAIM = "name";
 	private static final String USER_GROUP_PATH_CLAIM = "user_group_path";
 	private static final String PERSONAL_FOLDER_PREFIX = "/Users/";
+	public static final String PUBLIC_FOLDER = "/Public";
 	
 	
 	/**

@@ -17,6 +17,8 @@
 	<include location="keycloak.xml" optional="true" />
 	<include location="dev.xml" optional="true" onConflict="REPLACE" />
 
+	<!--  use jar: instead of wsjar: so e.g. EMFPlugin can find it resources -->
+	<classloading useJarUrls="true" />
 
     <featureManager>
 <!--         <feature>microProfile-3.2</feature> -->

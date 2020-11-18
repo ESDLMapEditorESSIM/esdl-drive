@@ -41,6 +41,7 @@ import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 
+
 @RequestScoped
 @Path("/revision")
 public class CDORevisionResource {

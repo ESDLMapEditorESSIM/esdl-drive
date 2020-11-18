@@ -112,7 +112,7 @@ public class CDOServerResource {
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		} catch (InvalidLoginInformationException e) {
-			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
 		
 		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
@@ -142,6 +142,44 @@ public class CDOServerResource {
 				// currently only cache the latest version
 				cdoManager.setCache(resourceURL,xmlString, cdoResource);
 			}
+			Date lastModified = resourceResult.getLastModified();
+			return Response.ok(xmlString).lastModified(lastModified).build();
+		} catch (Exception e) {
+			log.severe("Error: " + e);
+			e.printStackTrace();
+			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
+		}
+	}
+	
+	@GET
+	@Path("/resource/public/{resourceURL:.+}")
+	@Produces(MediaType.APPLICATION_XML)
+	public Response getPublicResource(@PathParam("resourceURL") String resourceURL) {
+		if (!resourceURL.startsWith("/")) {
+			resourceURL = "/" + resourceURL;
+		}
+		resourceURL = UserInfo.PUBLIC_FOLDER + resourceURL; // make sure to look in public folders only
+		System.out.println("PUBLIC Retrieving " + resourceURL);
+		log.info("PUBLIC getResource() ResourceURL: " + resourceURL);
+		// try to find it in the cache
+		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
+		if (cachedModel != null /*&& revision == null && !nocache*/) {
+			log.fine("PUBLIC getResource(): Retrieving model from cache");
+			System.out.println("PUBLIC getResource(): Retrieving model from cache: " + resourceURL);
+			return Response.ok(cachedModel).build();
+		}
+		try {
+			ResourceResult resourceResult = cdoManager.getPublicResource(resourceURL);
+			CDOResource cdoResource = resourceResult.getCDOResource();
+			String xmlString = cdoManager.convertToXMLString(cdoResource);
+			//log.info("Retrieved: " + xmlString);
+			if (xmlString == null) {
+				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
+			}
+			resourceResult.getView().getSession().close();
+			
+			// currently only cache the latest version - not revisions
+			cdoManager.setCache(resourceURL,xmlString, cdoResource);
 			Date lastModified = resourceResult.getLastModified();
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
@@ -185,7 +223,7 @@ public class CDOServerResource {
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		} catch (InvalidLoginInformationException e) {
-			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
 		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
 		System.out.println("putResource: " + resourceURL);
@@ -326,7 +364,7 @@ public class CDOServerResource {
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		} catch (InvalidLoginInformationException e) {
-			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
 		if (userInfo != null) {
 			cdoManager.logoutSession(userInfo);
@@ -361,7 +399,7 @@ public class CDOServerResource {
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		} catch (InvalidLoginInformationException e) {
-			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
 		if (userInfo != null) {
 			log.info("List resources request by: " + userInfo);

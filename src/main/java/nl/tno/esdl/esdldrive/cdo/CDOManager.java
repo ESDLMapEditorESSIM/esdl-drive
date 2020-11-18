@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -47,7 +48,6 @@ import javax.jms.IllegalStateException;
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.CDOObjectHistory;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
-import org.eclipse.emf.cdo.common.id.CDOID;
 import org.eclipse.emf.cdo.common.revision.CDORevision;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOBinaryResource;
@@ -69,7 +69,6 @@ import org.eclipse.emf.cdo.view.CDORevisionPrefetchingPolicy;
 import org.eclipse.emf.cdo.view.CDOView;
 import org.eclipse.emf.common.util.BasicEList;
 import org.eclipse.emf.common.util.BasicMonitor;
-import org.eclipse.emf.common.util.BasicMonitor.Printing;
 import org.eclipse.emf.common.util.ECollections;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.URI;
@@ -144,6 +143,8 @@ public class CDOManager {
 
 	private final static CDORevisionPrefetchingPolicy BIG_PREFETCHER = CDOUtil.createRevisionPrefetchingPolicy(1000);
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
+	
+	
 
 	public CDOManager() {
 		log.info("Injected config: CDO@:" + cdoServerHostName + "/" + cdoRepositoryName);
@@ -284,14 +285,20 @@ public class CDOManager {
 				transaction.setCommitComment(commitMessage);
 				commitInfo = transaction.commit();
 			}
-		} catch (CDOResourceNodeNotFoundException | InvalidURIException e) {
-			commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
+		} catch (Exception e) {
+			// EMFCompare throws NullPointerException when
+			if (e instanceof CDOResourceNodeNotFoundException || e instanceof InvalidURIException || e instanceof NullPointerException) {
+				log.log(Level.SEVERE, "Error saving by merging, trying full save: ", e);
+				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
+			} else {
+				throw e;
+			}
 		}
 		return commitInfo;
 	}
 
 	/**
-	 * Writes a rootObject to the database
+	 * Writes a rootObject to the database, overwriting any earlier data that is contained in this resource.
 	 * Only supports one root object in the uploadedResource
 	 * @param transaction
 	 * @param resourceName
@@ -456,6 +463,27 @@ public class CDOManager {
 
 		return hasResource;
 	}
+	
+	public ResourceResult getPublicResource(String resourceURL) throws PermissionDeniedException {
+		if (resourceURL.startsWith(UserInfo.PUBLIC_FOLDER)) {
+			try {
+				// create anonymous session
+				CDONet4jSession session = configuration.openNet4jSession();
+				CDOView view = session.openView();
+				view.options().setRevisionPrefetchingPolicy(BIG_PREFETCHER);
+				CDOResource resource = view.getResource(resourceURL);
+				ResourceResult resourceResult = new ResourceResult(resource, view);
+				log.info("getResource Retrieved: " + resource.getName());
+				return resourceResult;
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw e;
+			}	
+			
+		} else {
+			throw new PermissionDeniedException("Cannot access " + resourceURL);
+		}
+	}
 
 	public ResourceMetadata getResourceMetaData(UserInfo userInfo, String resourceURL) throws CDOResourceNodeNotFoundException {
 		log.info("Get metadata for " + resourceURL);
@@ -534,7 +562,7 @@ public class CDOManager {
 
 	@Initialized(ApplicationScoped.class)
 	private void setUpCDO() {
-
+		System.out.println("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
 		log.info("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
 		try {
 			// Enable logging and tracing
