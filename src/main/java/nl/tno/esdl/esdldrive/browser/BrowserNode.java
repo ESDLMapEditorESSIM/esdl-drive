@@ -26,7 +26,9 @@ public class BrowserNode {
 		FOLDER("folder"),
 		BINARY("file"),
 		TEXT("file-text"),
-		OTHER("file");
+		OTHER("file"),
+		ESDLDRIVE("folder-drive"),
+		EDR("folder-edr");
 		
 		private String iconName;
 		BrowserNodeType(String iconName) {

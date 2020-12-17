@@ -166,13 +166,13 @@ public class BrowserController {
 				JsonObject root = Json.createObjectBuilder().add("text", ROOT_FOLDER_NAME)
 						.add("children", children)
 						.add("id", "/")
-						.add("icon", BrowserNodeType.FOLDER.getIconName())
+						.add("icon", BrowserNodeType.ESDLDRIVE.getIconName())
 						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();
 				JsonObject edr = Json.createObjectBuilder().add("text", "Energy Data Repository")
 						.add("children", true)
 						.add("id", "/Energy Data Repository")
-						.add("icon", BrowserNodeType.FOLDER.getIconName())
+						.add("icon", BrowserNodeType.EDR.getIconName())
 						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();
 				JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
