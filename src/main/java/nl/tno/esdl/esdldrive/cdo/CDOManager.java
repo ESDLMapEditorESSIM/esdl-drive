@@ -80,6 +80,7 @@ import org.eclipse.emf.compare.merge.IMerger.Registry;
 import org.eclipse.emf.compare.scope.DefaultComparisonScope;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.util.EcoreUtil;
@@ -105,12 +106,15 @@ import org.eclipse.net4j.util.om.trace.PrintTraceHandler;
 import esdl.EnergySystem;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
+import esdl.util.EsdlResourceFactoryImpl;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
 import nl.tno.esdl.esdldrive.browser.BrowserNode.BrowserNodeType;
 import nl.tno.esdl.esdldrive.cdo.cache.CachedModel;
 import nl.tno.esdl.esdldrive.cdo.cache.LRUCache;
 import nl.tno.esdl.esdldrive.cdo.exceptions.MergeConfictException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
+import nl.tno.esdl.esdldrive.edr.EDRResource;
+import nl.tno.esdl.esdldrive.util.ESDLUtil;
 
 /**
  * @author werkmane
@@ -286,8 +290,11 @@ public class CDOManager {
 				commitInfo = transaction.commit();
 			}
 		} catch (Exception e) {
-			// EMFCompare throws NullPointerException when
-			if (e instanceof CDOResourceNodeNotFoundException || e instanceof InvalidURIException || e instanceof NullPointerException) {
+			// EMFCompare throws NullPointerException when there are errors in the XML
+			if (e instanceof CDOResourceNodeNotFoundException || e instanceof InvalidURIException) {
+				log.log(Level.INFO, "New file using full save: ", e.getMessage());
+				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
+			} else if (e instanceof NullPointerException) {
 				log.log(Level.SEVERE, "Error saving by merging, trying full save: ", e);
 				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
 			} else {
@@ -591,9 +598,15 @@ public class CDOManager {
 			configuration.addListener(cdoEventListener);
 
 			// Register ESDL
-			CDOSession session = configuration.openNet4jSession();
 			// make sure ESDL is loaded here.
 			EsdlFactory.eINSTANCE.eClass();
+			EPackage.Registry ePackageRegistry = EPackage.Registry.INSTANCE;
+			ePackageRegistry.put(EsdlPackage.eNS_URI, EsdlPackage.eINSTANCE);
+			// register esdl resources with extension .esdl
+			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
+			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
+			
+			CDOSession session = configuration.openNet4jSession();
 			session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
 			session.close();
 		} catch (Exception e) {
@@ -656,10 +669,12 @@ public class CDOManager {
 
 		CDOTransaction transaction = session.openTransaction();
 		EList<CDOResourceNode> nodes;
+		// WARNING: filters out the EDR folder from the root, to place it below the drive
 		if (path.equals("/") || path.equals("") || path.equals("j1_1")) {
 			nodes = transaction.getRootResource().getContents()
 					.stream().filter(CDOResourceNode.class::isInstance)
 					.map(CDOResourceNode.class::cast)
+					.filter(rn -> !rn.getName().equals(EDRResource.EDR_FOLDER_NAME))
 					.collect(Collectors.toCollection(BasicEList::new));
 		} else {		
 			CDOResourceFolder resourceNode = transaction.getResourceFolder(path);
@@ -759,7 +774,11 @@ public class CDOManager {
 		
 		map.put("type", getExtension(resource.getName()));
 		map.put("writable", permission.isWritable());
-		map.put("cached", getCache().containsKey(fileName));
+		boolean cached = getCache().containsKey(fileName);
+		map.put("cached", cached);
+		if (cached) {
+			map.put("size", ESDLUtil.bytesSizeToString(getCache().get(fileName).getXmlContent().length()));
+		}
 		return map;
 	}
 	

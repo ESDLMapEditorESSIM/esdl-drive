@@ -1,5 +1,7 @@
 package nl.tno.esdl.esdldrive.util;
 
+import java.text.CharacterIterator;
+import java.text.StringCharacterIterator;
 import java.util.stream.Collectors;
 
 import org.eclipse.emf.common.util.EList;
@@ -50,6 +52,24 @@ public class ESDLUtil {
 		}
 		sb.append(")");
 		return sb.toString();
+	}
+	
+	
+	/**
+	 * Taken from {@link https://programming.guide/java/formatting-byte-size-to-human-readable-format.html}  
+	 * @param bytes
+	 * @return
+	 */
+	public static String bytesSizeToString(long bytes) {
+	    if (-1000 < bytes && bytes < 1000) {
+	        return bytes + " B";
+	    }
+	    StringCharacterIterator ci = new StringCharacterIterator("kMGTPE");
+	    while (bytes <= -999_950 || bytes >= 999_950) {
+	        bytes /= 1000;
+	        ci.next();
+	    }
+	    return String.format("%.1f %cB", bytes / 1000.0, ci.current());
 	}
 
 }

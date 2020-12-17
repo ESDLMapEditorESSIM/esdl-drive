@@ -54,6 +54,8 @@ public class UserInfo {
 	private final String fullName;
 	private final List<String> groups = new ArrayList<String>();
 	private boolean admin = false;
+	private boolean publicUser = false;
+	
 	
 	@SuppressWarnings("unchecked")
 	public UserInfo(IdToken jwtToken) throws InvalidLoginInformationException {
@@ -77,6 +79,13 @@ public class UserInfo {
 			throw new InvalidLoginInformationException(e);
 		}
 
+	}
+	
+	protected UserInfo() {
+		this.userId = "public";
+		this.userName = "publicUser";
+		this.fullName = "Public User";
+		this.groups.add(PUBLIC_FOLDER);
 	}
 	
 	
@@ -134,6 +143,10 @@ public class UserInfo {
 	
 	public boolean isAdmin() {
 		return admin;
+	}
+	
+	public boolean isPublic() {
+		return publicUser;
 	}
 
 	public class InvalidLoginInformationException extends Exception {

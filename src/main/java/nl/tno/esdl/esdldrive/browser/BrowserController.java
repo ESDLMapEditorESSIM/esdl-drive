@@ -49,6 +49,7 @@ import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CommitException;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -89,7 +90,7 @@ public class BrowserController {
 	@Inject
 	CDOManager cdoManager;
 	
-	private enum Operation {
+	public enum BrowseOperation {
 		none,
 		get_node,
 		move_node,
@@ -109,7 +110,7 @@ public class BrowserController {
     @GET
     @RolesAllowed("cdo_read")
     @Produces(MediaType.APPLICATION_JSON)
-    @org.eclipse.microprofile.openapi.annotations.Operation(summary = "Browse through the repository files and folders and get information about these files",
+    @Operation(summary = "Browse through the repository files and folders and get information about these files",
     	description="This endpoint is used in combination with a JSTree to create a file browser for the repository. The API is based on JSTree's API")
     @Parameters({
     	@Parameter(allowEmptyValue = false, name = "operation", in = ParameterIn.QUERY, description = ">The operation to execute\nOperation:\\n * `get_node` - Gets a listing of a folder \\n * `get_content` - Get a content description of a file", 
@@ -142,9 +143,9 @@ public class BrowserController {
 		}        //System.out.println("Token: " + token);
         //System.out.println("NEW User groups:" +token.getClaim("user_group"));
         
-        Operation op = Operation.none;
+        BrowseOperation op = BrowseOperation.none;
         if (operation != null && !(operation.length() == 0)) {
-        	op = Operation.valueOf(operation);
+        	op = BrowseOperation.valueOf(operation);
         } else {
         	return Response.serverError().status(Status.BAD_REQUEST).entity(generateError("operation parameter missing")).build();
         }
@@ -168,7 +169,17 @@ public class BrowserController {
 						.add("icon", BrowserNodeType.FOLDER.getIconName())
 						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();
-				jsonObject = Json.createArrayBuilder().add(root).build();
+				JsonObject edr = Json.createObjectBuilder().add("text", "Energy Data Repository")
+						.add("children", true)
+						.add("id", "/Energy Data Repository")
+						.add("icon", BrowserNodeType.FOLDER.getIconName())
+						.add("type", BrowserNodeType.FOLDER.getIconName())
+						.build();
+				JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
+				arrayBuilder.add(root);
+				arrayBuilder.add(edr);
+				jsonObject = arrayBuilder.build();
+				
 			} else {				
 				jsonObject = getFolderContents(userInfo, id);
 				
@@ -325,7 +336,7 @@ public class BrowserController {
 //        	System.out.println("Groups: " + groups);
 //        }
         
-        //System.out.println("Browser returning (" + op +"): " + jsonObject);
+        System.out.println("Browser returning (" + op +"): " + jsonObject);
         return Response.accepted(jsonObject).build();
     }
     
@@ -360,7 +371,13 @@ public class BrowserController {
     private JsonArray getFolderContents(UserInfo userInfo, String path) {
     	log.info("Get folder contents of "+ path);
     	List<BrowserNode> folderContents = cdoManager.getFolderContents(userInfo, path);
-    	JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
+    	JsonArrayBuilder arrayBuilder = buildFolderContents(folderContents);
+    	    	
+    	return arrayBuilder.build();
+    }
+
+	public static JsonArrayBuilder buildFolderContents(List<BrowserNode> folderContents) {
+		JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
     	for (BrowserNode node : folderContents) {
     		JsonObject nodeAsJson = Json.createObjectBuilder()
     		.add("text", node.getName())
@@ -372,8 +389,7 @@ public class BrowserController {
 			.build();
 			arrayBuilder.add(nodeAsJson);
 		}
-    	    	
-    	return arrayBuilder.build();
-    }
+		return arrayBuilder;
+	}
     
 }
