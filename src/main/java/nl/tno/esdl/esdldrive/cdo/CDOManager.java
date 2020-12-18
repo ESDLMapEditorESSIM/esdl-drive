@@ -472,7 +472,7 @@ public class CDOManager {
 	}
 	
 	public ResourceResult getPublicResource(String resourceURL) throws PermissionDeniedException {
-		if (resourceURL.startsWith(UserInfo.PUBLIC_FOLDER)) {
+		if (resourceURL.startsWith(UserInfo.PUBLIC_FOLDER) || resourceURL.startsWith(EDRResource.EDR_PUBLIC_FOLDER_PATH )) {
 			try {
 				// create anonymous session
 				CDONet4jSession session = configuration.openNet4jSession();
@@ -480,7 +480,7 @@ public class CDOManager {
 				view.options().setRevisionPrefetchingPolicy(BIG_PREFETCHER);
 				CDOResource resource = view.getResource(resourceURL);
 				ResourceResult resourceResult = new ResourceResult(resource, view);
-				log.info("getResource Retrieved: " + resource.getName());
+				log.info("getPulicResource Retrieved: " + resource.getName());
 				return resourceResult;
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -719,6 +719,7 @@ public class CDOManager {
 		CDOTransaction transaction = session.openTransaction();
 		CDOResourceNode resourceNode = transaction.getResourceNode(fileName);
 		System.out.println("ResourceNode: " + resourceNode);
+		
 				
 		if (resourceNode instanceof CDOResourceFolder || fileName.equals("/")) {
 			map.put("type", "folder");
@@ -770,7 +771,8 @@ public class CDOManager {
 				name = name.substring(0,1).toUpperCase() + name.substring(1);
 				map.put(rootObject.eClass().getName() + name, rootObject.eGet(feature));
 			}
-		}			
+		}
+		map.put("esdlType", rootObject.eClass().getName());
 		
 		map.put("type", getExtension(resource.getName()));
 		map.put("writable", permission.isWritable());

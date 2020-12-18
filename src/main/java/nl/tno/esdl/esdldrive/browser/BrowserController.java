@@ -85,7 +85,7 @@ public class BrowserController {
 	
 	private static final String ROOT_FOLDER_NAME = "ESDL Drive";
 
-	Logger log = Logger.getLogger(this.getClass().getName());
+	private static Logger log = Logger.getLogger(BrowserController.class.getName());
 
 	@Inject
 	CDOManager cdoManager;
@@ -340,7 +340,7 @@ public class BrowserController {
         return Response.accepted(jsonObject).build();
     }
     
-    private void convertToActualType(JsonObjectBuilder contentBuilder, String key, Object value) {
+    public static void convertToActualType(JsonObjectBuilder contentBuilder, String key, Object value) {
     	if (value == null) return;
     	if (value instanceof String) {
 			contentBuilder.add(key, (String)value);
