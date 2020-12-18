@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.logging.Logger;
 
+import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import javax.json.Json;
@@ -26,27 +27,34 @@ import javax.ws.rs.core.SecurityContext;
 
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
+import org.eclipse.emf.cdo.util.CommitException;
+import org.eclipse.emf.cdo.util.ConcurrentAccessException;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+
+import com.ibm.websphere.security.openidconnect.PropagationHelper;
+import com.ibm.websphere.security.openidconnect.token.IdToken;
 
 import nl.tno.esdl.esdldrive.browser.BrowserController;
 import nl.tno.esdl.esdldrive.browser.BrowserController.BrowseOperation;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
+import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
+import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 
 @RequestScoped
 @Path("/edr")
 public class EDRResource {
 
-	public static final String EDR_FOLDER_NAME = "Energy Data Repository";
+	public static final String EDR_FOLDER_NAME = "edr";
 	public static final String EDR_PUBLIC_FOLDER_PATH = "/" + EDR_FOLDER_NAME + UserInfo.PUBLIC_FOLDER;
 	Logger log = Logger.getLogger(this.getClass().getName());
 	
 	@Inject
 	CDOManager cdoManager;
-	
+		
 	@GET
 	@Path("/browse")
 	@Produces(MediaType.APPLICATION_JSON)

@@ -204,33 +204,33 @@ public class ESDLValidator {
 	}
 	
 	
-	@GET
-	@Path("/long")
-	@Produces(MediaType.APPLICATION_JSON)
-	public void longResponse(@Context HttpServletResponse httpServletResponse) throws IOException, InterruptedException {
-		for (int i = 0; i < 50; i+=10) {
-			httpServletResponse.getWriter().append(getStatusJson("Uploading", i));
-			httpServletResponse.getWriter().flush();
-			
-			Thread.sleep(1000);
-		}
-		
-		
-		httpServletResponse.getWriter().append(getStatusJson("Storing in databse", 75));
-		httpServletResponse.getWriter().flush();
-		Thread.sleep(1000);
-		httpServletResponse.getWriter().append(getStatusJson("Done", 100));
-		httpServletResponse.getWriter().flush();
+//	@GET
+//	@Path("/long")
+//	@Produces(MediaType.APPLICATION_JSON)
+//	public void longResponse(@Context HttpServletResponse httpServletResponse) throws IOException, InterruptedException {
+//		for (int i = 0; i < 50; i+=10) {
+//			httpServletResponse.getWriter().append(getStatusJson("Uploading", i));
+//			httpServletResponse.getWriter().flush();
+//			
+//			Thread.sleep(1000);
+//		}
+//		
+//		
+//		httpServletResponse.getWriter().append(getStatusJson("Storing in databse", 75));
+//		httpServletResponse.getWriter().flush();
+//		Thread.sleep(1000);
+//		httpServletResponse.getWriter().append(getStatusJson("Done", 100));
+//		httpServletResponse.getWriter().flush();
+//	
+//	}
 	
-	}
-	
-	private String getStatusJson(String action, int percentage) {
-		return 
-			"{" + System.lineSeparator() 
-			+ "\"message\": \"" + action + "\"," + System.lineSeparator()
-			+ "\"percentage\":" + percentage + System.lineSeparator()  
-			+ "}" + System.lineSeparator() + System.lineSeparator();  
-	}
+//	private String getStatusJson(String action, int percentage) {
+//		return 
+//			"{" + System.lineSeparator() 
+//			+ "\"message\": \"" + action + "\"," + System.lineSeparator()
+//			+ "\"percentage\":" + percentage + System.lineSeparator()  
+//			+ "}" + System.lineSeparator() + System.lineSeparator();  
+//	}
 		
 	
 	
