@@ -46,6 +46,7 @@ import javax.ws.rs.core.Response.Status;
 
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.eresource.CDOResource;
+import org.eclipse.emf.cdo.util.CDOUtil;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.XMLResource;
@@ -133,6 +134,7 @@ public class CDOServerResource {
 		try {
 			ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL, revision);
 			CDOResource cdoResource = resourceResult.getCDOResource();
+			CDOUtil.setIntrinsicIDToEObjectMap(cdoResource, new HashMap<String, EObject>());
 			String xmlString = cdoManager.convertToXMLString(cdoResource);
 			//log.info("Retrieved: " + xmlString);
 			if (xmlString == null) {

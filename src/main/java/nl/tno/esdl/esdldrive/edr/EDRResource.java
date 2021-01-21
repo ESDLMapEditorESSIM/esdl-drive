@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.logging.Logger;
 
-import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import javax.json.Json;
@@ -27,22 +26,16 @@ import javax.ws.rs.core.SecurityContext;
 
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
-import org.eclipse.emf.cdo.util.CommitException;
-import org.eclipse.emf.cdo.util.ConcurrentAccessException;
 import org.eclipse.microprofile.openapi.annotations.Operation;
-
-import com.ibm.websphere.security.openidconnect.PropagationHelper;
-import com.ibm.websphere.security.openidconnect.token.IdToken;
 
 import nl.tno.esdl.esdldrive.browser.BrowserController;
 import nl.tno.esdl.esdldrive.browser.BrowserController.BrowseOperation;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
-import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
-import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
+import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 
 @RequestScoped
 @Path("/edr")
@@ -145,6 +138,19 @@ public class EDRResource {
 			e.printStackTrace();
 			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
 		}
+	}
+	
+	@GET
+	@Path("/search")
+	@Operation(summary="Search for a certain ESDL type in the public Energy Data Repository")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response search(@QueryParam("type") SearchESDLType type) {
+		
+		PublicUserInfo userInfo = new PublicUserInfo();
+		
+		List<EDRQueryResult> result = cdoManager.query(type, userInfo);
+				
+		return Response.ok(result).build();
 	}
 	
 	private JsonObject getErrorAsJson(String reason) {

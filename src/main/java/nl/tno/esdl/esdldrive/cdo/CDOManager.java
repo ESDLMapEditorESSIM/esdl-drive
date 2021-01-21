@@ -65,6 +65,7 @@ import org.eclipse.emf.cdo.util.CDOUtil;
 import org.eclipse.emf.cdo.util.CommitException;
 import org.eclipse.emf.cdo.util.ConcurrentAccessException;
 import org.eclipse.emf.cdo.util.InvalidURIException;
+import org.eclipse.emf.cdo.view.CDOQuery;
 import org.eclipse.emf.cdo.view.CDORevisionPrefetchingPolicy;
 import org.eclipse.emf.cdo.view.CDOView;
 import org.eclipse.emf.common.util.BasicEList;
@@ -114,14 +115,16 @@ import nl.tno.esdl.esdldrive.cdo.cache.LRUCache;
 import nl.tno.esdl.esdldrive.cdo.exceptions.MergeConfictException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 import nl.tno.esdl.esdldrive.edr.EDRResource;
+import nl.tno.esdl.esdldrive.edr.SearchESDLType;
+import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
 
 /**
  * @author werkmane
  *
  */
-//@ApplicationScoped
 @Singleton
+//@ApplicationScoped --> gives timeout errors on the connection....
 public class CDOManager {
 	
 	//private final static long CONCURRENTWRITE_TIMEOUT_MINUTES = 10;
@@ -395,8 +398,8 @@ public class CDOManager {
 					CDOObject object = revisionView.getObject(currentResource.cdoID());
 					if (object instanceof CDOResource) {
 						resource = (CDOResource) object;
-					} else if (object instanceof EnergySystem) {
-						EnergySystem energySystem = (EnergySystem) object;
+					} else if (object instanceof CDOObject) {
+						CDOObject energySystem = (CDOObject) object;
 						resource = energySystem.cdoResource();
 					}
 				}
@@ -1028,5 +1031,47 @@ public class CDOManager {
 		 }
 		 return size;
 	 }
+
+	public List<EDRQueryResult> query(SearchESDLType type, UserInfo userInfo) {
+		CDONet4jSession session = getSession(userInfo);
+		CDOView view = session.openView();
+		CDOResourceFolder edrFolder = view.getResourceFolder("/"+EDRResource.EDR_FOLDER_NAME);
+		
+		List<EDRQueryResult> queryResult = new ArrayList<EDRQueryResult>();
+		
+		String tableName = "esdl_" + type.name().toLowerCase();
+		
+		// EDR assets are direct resources (e.g. not part of an energy system ==> container column not 0), and have the cdo_resource column set)
+		// cdo_revised = 0 means that there is no update of this object (e.g. the latest version)
+		try {
+			CDOQuery query = view.createQuery("sql", "SELECT cdo_id FROM " + tableName + " WHERE cdo_resource <> 0 AND cdo_revised = 0");
+			List<Object> result = query.getResult();
+			System.out.println(result.size());
+			if (result.size() > 0) System.out.println(result.get(0));
+			
+			for (Object e: result) {
+				if (e instanceof CDOObject) {
+					CDOResource directResource = ((CDOObject)e).cdoDirectResource();
+					System.out.println("Direct resource: " + directResource);
+					if (directResource instanceof CDOResourceNode) {
+						CDOResourceNode cdoResourceNode = (CDOResourceNode) directResource;
+						System.out.println("Path of search result: " + cdoResourceNode.getPath());
+						if (cdoResourceNode.getPath().matches(edrFolder.getPath()+".+")) {
+							EDRQueryResult edrQueryResult = new EDRQueryResult(cdoResourceNode.getBasename(), cdoResourceNode.getPath(), type.name());
+							queryResult.add(edrQueryResult);
+						}
+					}
+				} 
+			}
+		} catch (Exception e) {
+			System.err.println("Error executing query: " + e.getMessage());
+			log.severe(e.getMessage());
+		}
+		
+		view.close();
+		return queryResult;
+		
+		
+	}
 
 }
