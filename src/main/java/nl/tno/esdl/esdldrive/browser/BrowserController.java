@@ -337,7 +337,7 @@ public class BrowserController {
 //        	System.out.println("Groups: " + groups);
 //        }
         
-        System.out.println("Browser returning (" + op +"): " + jsonObject);
+        System.out.println("Returning (" + op +") for " + userInfo.getUserName() + ": " + jsonObject);
         return Response.accepted(jsonObject).build();
     }
     

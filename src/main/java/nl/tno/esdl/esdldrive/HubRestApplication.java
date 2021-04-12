@@ -58,7 +58,7 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
 	info = @Info(
 			contact = @Contact(email = "ewoud.werkman@tno.nl", name = "Ewoud Werkman", url = "http://www.tno.nl/"), 
 			title = "ESDL Drive", 
-			version="1.1",
+			version="21.02",
 			description = "This API provides ways to store and retrieve ESDL files from the ESDL Drive, a storage solution for ESDL files",
 			license = @License(name = "Apache License 2.0", url="https://www.apache.org/licenses/LICENSE-2.0.html")) 
 	

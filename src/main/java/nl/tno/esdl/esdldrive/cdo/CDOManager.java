@@ -58,6 +58,7 @@ import org.eclipse.emf.cdo.eresource.CDOTextResource;
 import org.eclipse.emf.cdo.net4j.CDONet4jSession;
 import org.eclipse.emf.cdo.net4j.CDONet4jSessionConfiguration;
 import org.eclipse.emf.cdo.net4j.CDONet4jUtil;
+import org.eclipse.emf.cdo.net4j.ReconnectingCDOSessionConfiguration;
 import org.eclipse.emf.cdo.session.CDOSession;
 import org.eclipse.emf.cdo.session.CDOSessionConfiguration.SessionOpenedEvent;
 import org.eclipse.emf.cdo.transaction.CDOTransaction;
@@ -76,6 +77,7 @@ import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.compare.Comparison;
 import org.eclipse.emf.compare.Diff;
 import org.eclipse.emf.compare.EMFCompare;
+import org.eclipse.emf.compare.merge.BatchMerger;
 import org.eclipse.emf.compare.merge.IMerger;
 import org.eclipse.emf.compare.merge.IMerger.Registry;
 import org.eclipse.emf.compare.scope.DefaultComparisonScope;
@@ -272,6 +274,9 @@ public class CDOManager {
 					throw new MergeConfictException("Conflict(s) detected during saving.");
 				}
 				System.out.println("Merging differences: " + comparison.getDifferences().size() );
+// TODO check if this works:
+//				final BatchMerger batchMerger = new BatchMerger(emfCompareMergerRegistry);
+//				batchMerger.copyAllRightToLeft(comparison.getDifferences(), emfCompareMonitor);
 				LinkedList<Diff> diffs = new LinkedList<Diff>();
 				for (Diff diff: comparison.getDifferences()) {
 					createMergeDiffList(diffs, diff, 0);
@@ -389,7 +394,7 @@ public class CDOManager {
 				// we need some special attention, as the filename might not be the same in earlier revisions
 				System.out.println("Retrieving revision " + revision);
 				CDOView revisionView = session.openView(revision);
-				if (revisionView.hasResource(cdoServerHostName)) {
+				if (revisionView.hasResource(resourceName)) {
 					// file and path still exist in previous version
 					resource = view.getResource(resourceName);
 				} else {
@@ -619,8 +624,18 @@ public class CDOManager {
 	}
 	
 	private CDONet4jSessionConfiguration createUserSessionConfiguration(UserInfo userInfo) {
-		CDONet4jSessionConfiguration sessionConfiguration = CDONet4jUtil.createNet4jSessionConfiguration();
-		//CDONet4jSessionConfiguration sessionConfiguration = CDONet4jUtil.createReconnectingSessionConfiguration(cdoServerHostName, cdoRepositoryName, container);;
+		//CDONet4jSessionConfiguration sessionConfiguration = CDONet4jUtil.createNet4jSessionConfiguration();
+		ReconnectingCDOSessionConfiguration sessionConfiguration = CDONet4jUtil.createReconnectingSessionConfiguration(cdoServerHostName, cdoRepositoryName, container);;
+		sessionConfiguration.addListener(new IListener() {
+			
+			@Override
+			public void notifyEvent(IEvent event) {
+				System.out.println("Sessionconfiguration event: " + event);
+				
+			}
+		});
+		sessionConfiguration.setReconnectInterval(5000); // wait 5 seconds before trying again
+		//sessionConfiguration.setMaxReconnectAttempts(50); // max 50 reconnection attempts
 		sessionConfiguration.setConnector(connector);
 		sessionConfiguration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
 		sessionConfiguration.setSignalTimeout(60000);

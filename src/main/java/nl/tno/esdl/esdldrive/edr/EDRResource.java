@@ -14,6 +14,7 @@ import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -61,7 +62,7 @@ public class EDRResource {
 		
 		if (!id.startsWith("/")) id = "/" + id;
 		if (!id.toLowerCase().startsWith("/public")) {
-			return Response.status(Status.UNAUTHORIZED).entity("{\"error\": \"Not a public folder\"}").build();
+			return Response.status(Status.UNAUTHORIZED).entity(getErrorAsJson("Not a public folder")).build();
 		}
 		
 		String path = "/" + EDR_FOLDER_NAME + id; 
@@ -152,6 +153,20 @@ public class EDRResource {
 				
 		return Response.ok(result).build();
 	}
+	
+	
+	
+	@POST
+	@Path("/upload")
+	@Operation(summary="Upload a new Energy Data Description to the EDR")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response upload(EnergyDataDescriptionJSON edd) {
+		System.out.println(edd);
+		
+		return Response.ok().build();
+	}
+	
+	
 	
 	private JsonObject getErrorAsJson(String reason) {
 		return Json.createObjectBuilder()
