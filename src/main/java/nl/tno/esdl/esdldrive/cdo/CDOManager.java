@@ -77,7 +77,6 @@ import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.compare.Comparison;
 import org.eclipse.emf.compare.Diff;
 import org.eclipse.emf.compare.EMFCompare;
-import org.eclipse.emf.compare.merge.BatchMerger;
 import org.eclipse.emf.compare.merge.IMerger;
 import org.eclipse.emf.compare.merge.IMerger.Registry;
 import org.eclipse.emf.compare.scope.DefaultComparisonScope;
@@ -88,6 +87,7 @@ import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMLResource;
+import org.eclipse.emf.ecore.xmi.impl.XMLResourceFactoryImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.metrics.MetricUnits;
@@ -110,6 +110,9 @@ import esdl.EnergySystem;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
 import esdl.util.EsdlResourceFactoryImpl;
+import nl.tno.edr.EDRFactory;
+import nl.tno.edr.EDRPackage;
+import nl.tno.edr.EnergyDataDescription;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
 import nl.tno.esdl.esdldrive.browser.BrowserNode.BrowserNodeType;
 import nl.tno.esdl.esdldrive.cdo.cache.CachedModel;
@@ -313,11 +316,11 @@ public class CDOManager {
 	}
 
 	/**
-	 * Writes a rootObject to the database, overwriting any earlier data that is contained in this resource.
+	 * Writes a uploadedResource to the database, overwriting any earlier data that is contained in this resource.
 	 * Only supports one root object in the uploadedResource
 	 * @param transaction
 	 * @param resourceName
-	 * @param rootObject
+	 * @param uploadedResource
 	 * @param commitMessage
 	 * @return
 	 * @throws ConcurrentAccessException
@@ -605,18 +608,23 @@ public class CDOManager {
 			configuration.setSignalTimeout(60000);
 			configuration.addListener(cdoEventListener);
 
+			// register EDR model
+			EDRFactory.eINSTANCE.eClass();
 			// Register ESDL
 			// make sure ESDL is loaded here.
 			EsdlFactory.eINSTANCE.eClass();
 			EPackage.Registry ePackageRegistry = EPackage.Registry.INSTANCE;
 			ePackageRegistry.put(EsdlPackage.eNS_URI, EsdlPackage.eINSTANCE);
+			ePackageRegistry.put(EDRPackage.eNS_URI, EDRPackage.eINSTANCE);
 			// register esdl resources with extension .esdl
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
+			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edr", new XMLResourceFactoryImpl()); 
 			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
 			
-			CDOSession session = configuration.openNet4jSession();
-			session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
-			session.close();
+			//CDOSession session = configuration.openNet4jSession();
+			configuration.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
+			configuration.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
+			//session.close();
 		} catch (Exception e) {
 			log.severe("Error connecting to the CDO Server: " + e);
 		}
@@ -715,7 +723,14 @@ public class CDOManager {
 				} else if (node instanceof CDOTextResource) {
 					browserNode.setType(BrowserNodeType.TEXT);
 				} else if (node instanceof CDOResource) {
-					browserNode.setType(BrowserNodeType.ESDL_FILE);				
+					String extension = getExtension(node.getName());
+					browserNode.setType(BrowserNodeType.ESDL_FILE);
+					//if (extension.equalsIgnoreCase("esdl")) {
+					//	browserNode.setType(BrowserNodeType.ESDL_FILE);
+					//} else 
+					if (extension.equalsIgnoreCase("edr")) {
+						browserNode.setType(BrowserNodeType.EDR_FILE);
+					}
 				}
 				list.add(browserNode);
 			}
@@ -1088,5 +1103,28 @@ public class CDOManager {
 		
 		
 	}
-
+	
+	public List<EnergyDataDescription> queryEDD(UserInfo userInfo, HashMap<String, String> filter) {
+		CDONet4jSession session = getSession(userInfo);
+		CDOView view = session.openView();
+		//CDOResourceFolder edrFolder = view.getResourceFolder("/"+EDRResource.EDR_FOLDER_NAME);
+		String tableName = "edr_EnergyDataDescription";
+		String sqlFilter = filter.entrySet().stream().map(e -> e.getKey() + " LIKE '%" + e.getValue() + "%'").collect(Collectors.joining(" AND "));
+		System.out.println(sqlFilter);
+		try {
+			String sqlQuery = "SELECT cdo_id FROM " + tableName + " WHERE cdo_resource <> 0 AND cdo_revised = 0";
+//			if (!sqlFilter.isEmpty()) sqlQuery += " AND " + sqlFilter;
+//			System.out.println("Query:" + sqlQuery);
+//			CDOQuery query = view.createQuery("sql", sqlQuery);
+			CDOQuery query = view.createQuery("ocl", "edr::EnergyDataDescription.allInstances()");
+//			CDOQuery query = view.createQuery("ocl", "EnergyDataDescription.allInstances()->select(e:EnergyDataDescription|e.tags=self)",
+//					"cool");
+			List<EnergyDataDescription> result = query.getResult(EnergyDataDescription.class);
+			return result;
+		} catch (Exception e) {
+			System.err.println("Error executing query: " + e.getMessage());
+			log.severe(e.getMessage());
+		}
+		return null;
+	}
 }

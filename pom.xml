@@ -9,7 +9,7 @@
 	<version>21.01</version>
 	<packaging>war</packaging>
 	<properties>
-		<openliberty.maven.version>3.3.3</openliberty.maven.version>
+		<openliberty.maven.version>3.3.4</openliberty.maven.version>
 		<openliberty.version>20.0.0.12</openliberty.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
