@@ -56,16 +56,18 @@ public class EnergyDataDescriptionJSON {
 		
 		// handle ESDL string
 		String esdl = getEsdl();
-		byte[] esdlBytes = esdl.getBytes("UTF-8");
-		ByteArrayInputStream stream = new ByteArrayInputStream(esdlBytes);
-		HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
-		XMLResourceImpl resource = new XMLResourceImpl();
-		resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
-		resource.getDefaultLoadOptions().put(XMLResource.OPTION_RECORD_UNKNOWN_FEATURE, Boolean.TRUE);
-		resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
-		resource.load(stream, null);
-		EObject esdlObject = resource.getContents().get(0);
-		edd.setEsdl(esdlObject);
+		if (esdl != null && !esdl.isEmpty()) {
+			byte[] esdlBytes = esdl.getBytes("UTF-8");
+			ByteArrayInputStream stream = new ByteArrayInputStream(esdlBytes);
+			HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
+			XMLResourceImpl resource = new XMLResourceImpl();
+			resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
+			resource.getDefaultLoadOptions().put(XMLResource.OPTION_RECORD_UNKNOWN_FEATURE, Boolean.TRUE);
+			resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
+			resource.load(stream, null);
+			EObject esdlObject = resource.getContents().get(0);
+			edd.setEsdl(esdlObject);
+		}
 		
 		// handle image bytes
 		

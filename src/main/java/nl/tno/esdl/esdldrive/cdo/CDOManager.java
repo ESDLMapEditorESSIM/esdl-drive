@@ -605,7 +605,7 @@ public class CDOManager {
 			configuration.setConnector(connector);
 			configuration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
 			log.info("Signal timeout" + configuration.getSignalTimeout());
-			configuration.setSignalTimeout(60000);
+			configuration.setSignalTimeout(600000);
 			configuration.addListener(cdoEventListener);
 
 			// register EDR model
@@ -620,13 +620,13 @@ public class CDOManager {
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edr", new XMLResourceFactoryImpl()); 
 			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
-			
-			//CDOSession session = configuration.openNet4jSession();
-			configuration.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
-			configuration.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
-			//session.close();
+			CDOSession session = configuration.openNet4jSession();
+			session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
+			session.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
+			session.close();
 		} catch (Exception e) {
 			log.severe("Error connecting to the CDO Server: " + e);
+			e.printStackTrace();
 		}
 
 	}
@@ -1113,10 +1113,10 @@ public class CDOManager {
 		System.out.println(sqlFilter);
 		try {
 			String sqlQuery = "SELECT cdo_id FROM " + tableName + " WHERE cdo_resource <> 0 AND cdo_revised = 0";
-//			if (!sqlFilter.isEmpty()) sqlQuery += " AND " + sqlFilter;
+			if (!sqlFilter.isEmpty()) sqlQuery += " AND " + sqlFilter;
 //			System.out.println("Query:" + sqlQuery);
-//			CDOQuery query = view.createQuery("sql", sqlQuery);
-			CDOQuery query = view.createQuery("ocl", "edr::EnergyDataDescription.allInstances()");
+			CDOQuery query = view.createQuery("sql", sqlQuery);
+//			CDOQuery query = view.createQuery("ocl", "edr::EnergyDataDescription.allInstances()");
 //			CDOQuery query = view.createQuery("ocl", "EnergyDataDescription.allInstances()->select(e:EnergyDataDescription|e.tags=self)",
 //					"cool");
 			List<EnergyDataDescription> result = query.getResult(EnergyDataDescription.class);

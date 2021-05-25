@@ -86,13 +86,13 @@
 		<dependency>
 			<groupId>org.eclipselabs</groupId>
 			<artifactId>cdo</artifactId>
-			<version>4.12.0-SNAPSHOT</version>
+			<version>4.13.0-SNAPSHOT</version>
 			<type>pom</type>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipselabs</groupId>
 			<artifactId>net4j</artifactId>
-			<version>4.12.0-SNAPSHOT</version>
+			<version>4.13.0-SNAPSHOT</version>
 			<type>pom</type>
 		</dependency>
 		<dependency>
