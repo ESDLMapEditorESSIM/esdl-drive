@@ -3,38 +3,56 @@ package nl.tno.esdl.esdldrive.edr;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
 import javax.json.bind.annotation.JsonbProperty;
+import javax.json.bind.annotation.JsonbPropertyOrder;
 
+import org.eclipse.emf.cdo.CDOObject;
+import org.eclipse.emf.cdo.common.revision.CDORevision;
+import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
-
-import com.google.common.collect.Lists;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 import nl.tno.edr.EDRFactory;
 import nl.tno.edr.EnergyDataDescription;
 import nl.tno.edr.Image;
 
+@JsonbPropertyOrder({"id","title","description","version","tags","image", "esdlType", "esdl"})
+@Schema(name="EnergyDataDescription", description="Json that describes an Energy Data Description (EDD) in the EDR, i.e. metadata for an EDR entry")
 public class EnergyDataDescriptionJSON {
 	
+	@Schema(name="id", description="Not used when storing and EDD, describes the unique path of this EDD when retrieved from the EDR", required = false, readOnly = true)
 	private String id;
 	@JsonbProperty(nillable = false)
+	@Schema(description="Title of the description", required=true)
 	private String title;
 	@JsonbProperty(nillable = false)
+	@Schema(description="Longer description about the data that is described")
 	private String description;
+	@Schema(description="Define tags for this data", required=false)
 	private List<String> tags;
+	@Schema(description="The version of this description, will probably be generated in the future", required=false)
 	private String version;
+	@Schema(description="The URL to a grafana dashboard when timeseries or profiles are described", required=false)
 	private String graphURL;
 	@JsonbProperty(nillable = false)
+	@Schema(description="The ESDL as XML string that is described by this EDD", required=true)
 	private String esdl;
+	@Schema(description="Image and content type for this description", required=false, implementation = ImageJSON.class)
 	private ImageJSON image;
+	@Schema(description="This is automatically generated based on the ESDL that is set.", required=false, readOnly=true)
+	private String esdlType;
+	@Schema(description="Timestamp of when the file was last changed (generated)", required=false, readOnly=true)
+	private long lastChanged;
+	@Schema(description="Timestamp of when the file was first published (generated)", required=false, readOnly=true)
+	private long publicationDate;
+	
 	
 	public EnergyDataDescriptionJSON() {
 	}
@@ -67,6 +85,7 @@ public class EnergyDataDescriptionJSON {
 			resource.load(stream, null);
 			EObject esdlObject = resource.getContents().get(0);
 			edd.setEsdl(esdlObject);
+			edd.setEsdlType(esdlObject.eClass().getName());
 		}
 		
 		// handle image bytes
@@ -83,33 +102,64 @@ public class EnergyDataDescriptionJSON {
 		return edd;
 	}
 	
-	public static EnergyDataDescriptionJSON fromEDD(EnergyDataDescription edd) {
+	
+	public static  EnergyDataDescriptionJSON fromEDD(EnergyDataDescription edd) {
+		return fromEDD(edd, true, true);
+	}
+	
+	public static EnergyDataDescriptionJSON fromEDD(EnergyDataDescription edd, boolean addImageData, boolean addESDL) {
 		EnergyDataDescriptionJSON json = new EnergyDataDescriptionJSON();
 		json.setDescription(edd.getDescription());
 		json.setTitle(edd.getTitle());
 		json.setGraphURL(edd.getGraphURL());
 		json.setVersion(edd.getVersion());
-		json.setId(edd.getId());
+		json.setId(edd.cdoDirectResource().getPath());
 		json.setTags(new ArrayList<String>(edd.getTags()));
 		EObject esdlObject = edd.getEsdl();
 		if (esdlObject != null) {
-			ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
-			XMLResource resource = new XMLResourceImpl();
-			// need to copy here as esdlObject is CDOObject with references to the database
-			resource.getContents().add(EcoreUtil.copy(esdlObject));
-			HashMap<String, Object> options = new HashMap<String, Object>();
-			options.put(XMLResource.OPTION_ENCODING, "UTF-8");
-			try {
-				resource.save(byteArray, options);
-				json.setEsdl(byteArray.toString("UTF-8"));
-			} catch (IOException e) {
-				e.printStackTrace();
+			json.setEsdlType(esdlObject.eClass().getName());
+			if (esdlObject instanceof CDOObject) {
+				// TODO check if this works
+				CDOObject cdoObject = (CDOObject) esdlObject;
+				CDORevision cdoRevision = cdoObject.cdoRevision(true);
+				if (cdoRevision != null) {					
+					json.setLastChanged(cdoRevision.getTimeStamp());
+					json.setVersion(json.getVersion() + "-R" + cdoRevision.getVersion());
+				} else {
+					System.out.println("No last change date for " + edd.cdoDirectResource().getPath());
+				}
+			}
+			if (addESDL) {
+				ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+				XMLResource resource = new XMLResourceImpl();
+				// need to copy here as esdlObject is CDOObject with references to the database
+				resource.getContents().add(EcoreUtil.copy(esdlObject));
+				HashMap<String, Object> options = new HashMap<String, Object>();
+				options.put(XMLResource.OPTION_ENCODING, "UTF-8");
+				try {
+					resource.save(byteArray, options);
+					json.setEsdl(byteArray.toString("UTF-8"));
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 			}
 		}
-		if (edd.getImage() != null && edd.getImage().getImageData() != null) {
+		if (addImageData && edd.getImage() != null && edd.getImage().getImageData() != null) {
 			ImageJSON imageJSON = new ImageJSON(edd.getImage().getContentType(), new String(edd.getImage().getImageData()));
 			json.setImage(imageJSON);
 		}
+		
+		if (edd.cdoDirectResource() != null) {
+			CDOResource resource = edd.cdoDirectResource();
+			// load history to find creation time of resource
+			resource.cdoHistory().triggerLoad();
+			while (resource.cdoHistory().isLoading()) {
+				resource.cdoHistory().waitWhileLoading(10);
+			}
+			json.setPublicationDate(resource.cdoHistory().getLastElement().getTimeStamp());
+		}
+		
+		
 		return json;
 	}
 
@@ -175,6 +225,30 @@ public class EnergyDataDescriptionJSON {
 
 	public void setImage(ImageJSON image) {
 		this.image = image;
+	}
+
+	public String getEsdlType() {
+		return esdlType;
+	}
+
+	public void setEsdlType(String edrType) {
+		this.esdlType = edrType;
+	}
+
+	public long getLastChanged() {
+		return lastChanged;
+	}
+
+	public void setLastChanged(long lastChanged) {
+		this.lastChanged = lastChanged;
+	}
+
+	public long getPublicationDate() {
+		return publicationDate;
+	}
+
+	public void setPublicationDate(long publicationDate) {
+		this.publicationDate = publicationDate;
 	}
 
 	

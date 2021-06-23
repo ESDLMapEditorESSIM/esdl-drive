@@ -341,6 +341,7 @@ public class BrowserController {
         return Response.accepted(jsonObject).build();
     }
     
+    @SuppressWarnings("unchecked")
     public static void convertToActualType(JsonObjectBuilder contentBuilder, String key, Object value) {
     	if (value == null) return;
     	if (value instanceof String) {
@@ -359,6 +360,16 @@ public class BrowserController {
 			contentBuilder.add(key, (BigInteger)value);
 		} else if (value instanceof BigDecimal) {
 			contentBuilder.add(key, (BigDecimal)value);
+		} else if (value instanceof List<?>) {
+			List<?> list = (List<?>)value;
+			// only add strings here
+			if (list.size() > 0 && list.get(0) instanceof String) {
+				JsonArrayBuilder array = Json.createArrayBuilder();
+				for (String item: (List<String>)list) {
+					array.add(item);
+				}
+				contentBuilder.add(key, array);
+			}
 		} else {
 			log.info("Ignoring " + key + ", value: " + value);
 		}

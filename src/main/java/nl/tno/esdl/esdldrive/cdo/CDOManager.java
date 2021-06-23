@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -55,6 +56,7 @@ import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
 import org.eclipse.emf.cdo.eresource.CDOResourceNode;
 import org.eclipse.emf.cdo.eresource.CDOTextResource;
+import org.eclipse.emf.cdo.internal.common.model.CDOPackageRegistryImpl;
 import org.eclipse.emf.cdo.net4j.CDONet4jSession;
 import org.eclipse.emf.cdo.net4j.CDONet4jSessionConfiguration;
 import org.eclipse.emf.cdo.net4j.CDONet4jUtil;
@@ -608,6 +610,7 @@ public class CDOManager {
 			configuration.setSignalTimeout(600000);
 			configuration.addListener(cdoEventListener);
 
+			
 			// register EDR model
 			EDRFactory.eINSTANCE.eClass();
 			// Register ESDL
@@ -617,6 +620,7 @@ public class CDOManager {
 			ePackageRegistry.put(EsdlPackage.eNS_URI, EsdlPackage.eINSTANCE);
 			ePackageRegistry.put(EDRPackage.eNS_URI, EDRPackage.eINSTANCE);
 			// register esdl resources with extension .esdl
+			
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edr", new XMLResourceFactoryImpl()); 
 			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
@@ -646,11 +650,16 @@ public class CDOManager {
 		//sessionConfiguration.setMaxReconnectAttempts(50); // max 50 reconnection attempts
 		sessionConfiguration.setConnector(connector);
 		sessionConfiguration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
-		sessionConfiguration.setSignalTimeout(60000);
-		log.info("Signal timeout " + sessionConfiguration.getSignalTimeout());
+		sessionConfiguration.setSignalTimeout(300000);
+		log.info("Session signal timeout " + sessionConfiguration.getSignalTimeout());
 		sessionConfiguration.addListener(cdoEventListener);
 		sessionConfiguration.setUserID(userInfo.getUserName());
 		sessionConfiguration.setActivateOnOpen(true);
+		// Somehow this is necessary when starting up clean
+		CDOSession session = configuration.openNet4jSession();
+		session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
+		session.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
+		session.close();
 		return sessionConfiguration;		
 	}
 	
@@ -678,6 +687,8 @@ public class CDOManager {
 	        }
 	      }
 	    };
+
+	private CDOPackageRegistryImpl cdoPackageRegistry;
 
 	
 	
@@ -1104,25 +1115,91 @@ public class CDOManager {
 		
 	}
 	
-	public List<EnergyDataDescription> queryEDD(UserInfo userInfo, HashMap<String, String> filter) {
+	public List<EnergyDataDescription> queryEDD(UserInfo userInfo, final HashMap<String, String> filter) {
 		CDONet4jSession session = getSession(userInfo);
 		CDOView view = session.openView();
 		//CDOResourceFolder edrFolder = view.getResourceFolder("/"+EDRResource.EDR_FOLDER_NAME);
-		String tableName = "edr_EnergyDataDescription";
-		String sqlFilter = filter.entrySet().stream().map(e -> e.getKey() + " LIKE '%" + e.getValue() + "%'").collect(Collectors.joining(" AND "));
-		System.out.println(sqlFilter);
+		String eddTableName = "edr_EnergyDataDescription";
+		String tagsTableName = "edr_energydatadescription_tags_list";
+		List<String> tagsFilter = new ArrayList<>(); 
+		List<String> eddFilter = new ArrayList<>();
+		String limit = "";
+		String offset = "";
+		String order = "";
+		//String esdlType = "";
+		for (Map.Entry<String, String> entry: filter.entrySet()) {
+			switch (entry.getKey()) {
+			case "tag": // tags feature requires joining of tags_list table, tags are in the cdo_value column
+			case "tags":
+				tagsFilter.add("t.cdo_value" + " LIKE '%" + entry.getValue() + "%'");
+				break;
+			case "limit":
+				limit = " LIMIT " + entry.getValue();
+				break;
+			case "offset":
+				offset = " OFFSET " + entry.getValue();
+				break;
+			case "order":
+				order = " ORDER BY title " + entry.getValue(); // cdo_source is id of resource -> time of creation of edr resource
+				break;
+			case "esdlType":
+				eddFilter.add(entry.getKey() + " = '" + entry.getValue()+ "'");
+				//esdlType = entry.getValue();
+				// maybe check if this is a valid ESDL type?
+				break;
+			default:
+				eddFilter.add(entry.getKey() + " LIKE '%" + entry.getValue() + "%'");
+				break;
+			}
+		}
+		String eddFilterQuery = eddFilter.stream().collect(Collectors.joining(" AND "));
+		String tagsFilterQuery = tagsFilter.stream().collect(Collectors.joining(" AND "));
 		try {
-			String sqlQuery = "SELECT cdo_id FROM " + tableName + " WHERE cdo_resource <> 0 AND cdo_revised = 0";
-			if (!sqlFilter.isEmpty()) sqlQuery += " AND " + sqlFilter;
-//			System.out.println("Query:" + sqlQuery);
+			String sqlQuery = "SELECT cdo_id FROM " + eddTableName + " WHERE cdo_resource <> 0 AND cdo_revised = 0";
+			if (!eddFilter.isEmpty()) sqlQuery += " AND " + eddFilterQuery;
+			sqlQuery += order + limit + offset;
+			
+			// complex query with join when querying for tags
+			/*
+			  	SELECT o.cdo_id 
+				FROM edr_EnergyDataDescription o LEFT JOIN edr_energydatadescription_tags_list t ON o.cdo_id=t.cdo_source
+				WHERE o.cdo_resource <> 0 AND o.cdo_revised = 0 AND o.cdo_version=t.cdo_version AND t.cdo_value LIKE '%etm%'  
+				WHERE o.cdo_resource <> 0 AND o.cdo_revised = 0 AND t.cdo_value LIKE '%etm%' GROUP BY o.cdo_id;
+			*/
+			if (!tagsFilterQuery.isEmpty()) {
+				String totalFilter = tagsFilterQuery;
+				if (!eddFilterQuery.isEmpty()) totalFilter += " AND " + eddFilterQuery;
+				// we need to join with the tags table
+				sqlQuery = "SELECT o.cdo_id "
+						+ "FROM " + eddTableName + " o LEFT JOIN " + tagsTableName + " t ON o.cdo_id=t.cdo_source "
+						+ "WHERE o.cdo_resource <> 0 AND o.cdo_revised = 0 AND o.cdo_version=t.cdo_version AND " + totalFilter + order + limit + offset;
+			}
+			System.out.println("Query:" + sqlQuery);
 			CDOQuery query = view.createQuery("sql", sqlQuery);
 //			CDOQuery query = view.createQuery("ocl", "edr::EnergyDataDescription.allInstances()");
-//			CDOQuery query = view.createQuery("ocl", "EnergyDataDescription.allInstances()->select(e:EnergyDataDescription|e.tags=self)",
+//			CDOQuery query = view.createQuery("ocl", "EnergyDataDescription.allInstances()->select(e:EnergyDataDescription|e.tags.includes(self))",
 //					"cool");
 			List<EnergyDataDescription> result = query.getResult(EnergyDataDescription.class);
+//			List<EnergyDataDescription> typeFilteredResult = new ArrayList<>();
+//			if (!esdlType.isEmpty()) {
+//				ListIterator<EnergyDataDescription> iterator = result.listIterator();
+//				while(iterator.hasNext()) {
+//					EnergyDataDescription edd = iterator.next();
+//					if (edd.getEsdl() == null || (edd.getEsdl() != null && !edd.getEsdl().eClass().getName().equals(esdlType))) {
+//						System.out.println("Removing " + edd);
+//						//iterator.remove(); // doesnt seem to work
+//						
+//					} else {
+//						System.out.println("Keeping " + edd + " [type=" + edd.getEsdl() + "]");
+//						typeFilteredResult.add(edd);
+//					}
+//				}
+//				result = typeFilteredResult;
+//			}
 			return result;
 		} catch (Exception e) {
 			System.err.println("Error executing query: " + e.getMessage());
+			e.printStackTrace();
 			log.severe(e.getMessage());
 		}
 		return null;
