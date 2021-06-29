@@ -61,7 +61,7 @@ Manager:
 		</style>
 	</head>
 	<body>
-		<div style="width: 50%; height: 20px;margin: 5px;">ESDL Drive</div>
+		<div style="width: 50%; height: 20px;margin: 5px;"><img src="icons/ESDLDrive-16.png" style="position: relative; top:2px"/><span>  </span><span style="font-weight: bold;">ESDL Drive</span></div>
 		
 		<!--		
 		<div style="width: 50%;">  
@@ -86,7 +86,7 @@ Manager:
 		<script>
 		$(function () {
 			$(window).resize(function () {
-				var h = Math.max($(window).height() - 0, 420);
+				var h = Math.max($(window).height() - 30, 420);
 				$('#container, #data, #tree, #data .content').height(h).filter('.default').css('lineHeight', h + 'px');
 			}).resize();
 

@@ -40,7 +40,7 @@ public class SessionDetails {
 			log.info("Creating new session for " + userInfo.getUserName());
 			cdoSession = sessionConfiguration.openNet4jSession();
 		} else {
-			log.info("Retrieving cached session for " + userInfo.getUserName());
+			log.fine("Retrieving cached session for " + userInfo.getUserName());
 		}
 		this.lastUsed = System.currentTimeMillis();
 		return cdoSession;

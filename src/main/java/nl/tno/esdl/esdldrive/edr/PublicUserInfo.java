@@ -5,6 +5,7 @@ import nl.tno.esdl.esdldrive.cdo.UserInfo;
 
 /**
  * Represents a public user accessing the public part(s) of the system
+ * specifically adds the edr/Public folder
  * @author werkmane
  *
  */

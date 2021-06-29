@@ -37,7 +37,8 @@ public class UserInfo {
 	 *	 "resource_access": {
 	 *	    "cdo-mondaine": {
 	 *	      "roles": [
-	 *	        "esdl-drive-admin"
+	 *	        "esdl-drive-admin", # can access everything
+	 *			"edr-public-write"  # can write to edr public
 	 *	      ]
 	 *	    },
 	 *	  } ...
@@ -47,6 +48,7 @@ public class UserInfo {
 	private static final String CLIENT_ID = "cdo-mondaine";
 	private static final String RESOURCE_ACCESS_ROLES_SUB_CLAIM = "roles";
 	private static final String ESDL_DRIVE_ROLES_ADMIN = "esdl-drive-admin";
+	private static final String ESDL_DRIVE_EDR_PUBLIC_WRITE = "edr-public-write";
 	
 	
 	private final String userId;
@@ -54,6 +56,7 @@ public class UserInfo {
 	private final String fullName;
 	private final List<String> groups = new ArrayList<String>();
 	private boolean admin = false;
+	private boolean edrWrite = false;
 	private boolean publicUser = false;
 	
 	
@@ -65,7 +68,8 @@ public class UserInfo {
 			this.userId = jwtToken.getSubject();
 			this.userName = (String)jwtToken.getClaim(USER_NAME_CLAIM);
 			this.fullName = (String)jwtToken.getClaim(FULL_NAME_CLAIM); 
-			this.admin  = checkIsAdmin(jwtToken);
+			this.admin  = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_ROLES_ADMIN);
+			this.edrWrite = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_EDR_PUBLIC_WRITE);
 			if (jwtToken.getClaim(USER_GROUP_PATH_CLAIM) != null && jwtToken.getClaim(USER_GROUP_PATH_CLAIM) instanceof List) {
 				groups.addAll((List<String>)jwtToken.getClaim(USER_GROUP_PATH_CLAIM));
 			} else {
@@ -85,6 +89,7 @@ public class UserInfo {
 		this.userId = "public";
 		this.userName = "publicUser";
 		this.fullName = "Public User";
+		this.publicUser = true;
 		this.groups.add(PUBLIC_FOLDER);
 	}
 	
@@ -95,7 +100,8 @@ public class UserInfo {
 	 *    "resource_access": {
 	 *	    "cdo-mondaine": {
 	 *	      "roles": [
-	 *	        "esdl-drive-admin"
+	 *	        "esdl-drive-admin",
+	 *			"edr-public_write"
 	 *	      ]
 	 *	    },
 	 *	  } ...
@@ -105,14 +111,14 @@ public class UserInfo {
 	 * @return
 	 */
 	@SuppressWarnings("unchecked")
-	private boolean checkIsAdmin(IdToken jwtToken) {
+	private boolean userHasESDLDriveRole(IdToken jwtToken, String role) {
 		Map<String, Object> resource_access = (Map<String, Object>)jwtToken.getClaim(RESOURCE_ACCESS_CLAIM);
 		if (resource_access != null) {
 			Map<String, Object> mondaine_cdo_client_claims = (Map<String, Object>)resource_access.get(CLIENT_ID);
 			if (mondaine_cdo_client_claims != null) {
 				List<String> mondaine_cdo_client_roles = (List<String>)mondaine_cdo_client_claims.get(RESOURCE_ACCESS_ROLES_SUB_CLAIM);
 				if (mondaine_cdo_client_roles != null) { 
-					return mondaine_cdo_client_roles.contains(ESDL_DRIVE_ROLES_ADMIN);
+					return mondaine_cdo_client_roles.contains(role);
 				}
 			}
 				
@@ -143,6 +149,10 @@ public class UserInfo {
 	
 	public boolean isAdmin() {
 		return admin;
+	}
+
+	public boolean hasPublicEDRWriteAccess() {
+		return edrWrite;
 	}
 	
 	public boolean isPublic() {

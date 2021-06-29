@@ -1,4 +1,2 @@
 mvn package
-docker build . -t mondaine-hub
-docker tag mondaine-hub:latest ci.tno.nl/esdl/mondaine-hub
-docker push ci.tno.nl/esdl/mondaine-hub:latest
+docker build . -t esdl-drive:21.06 --build-arg mode=dev

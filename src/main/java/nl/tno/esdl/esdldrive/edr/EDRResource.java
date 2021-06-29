@@ -1,6 +1,7 @@
 package nl.tno.esdl.esdldrive.edr;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -43,20 +44,23 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
-import org.eclipse.microprofile.openapi.annotations.media.Encoding;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 
+import com.ibm.websphere.security.openidconnect.PropagationHelper;
+
 import nl.tno.edr.EnergyDataDescription;
 import nl.tno.esdl.esdldrive.browser.BrowserController;
 import nl.tno.esdl.esdldrive.browser.BrowserController.BrowseOperation;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
+import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
+import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 
@@ -97,6 +101,7 @@ public class EDRResource {
 		
 		
 		
+		// allow only browsing from /public
 		if (!id.startsWith("/")) id = "/" + id;
 		if (!id.toLowerCase().startsWith("/public")) {
 			return Response.status(Status.UNAUTHORIZED).entity(getErrorAsJson("Not a public folder")).build();
@@ -276,6 +281,10 @@ public class EDRResource {
 	})
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
+	@APIResponses( {
+		@APIResponse(responseCode = "201", description = "Upload successful, created resource at resourceURL"),
+		@APIResponse(responseCode = "403", description = "Access denied, provide proper credentials")
+	})
 	public Response upload(EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL) {
 		String path = new String(resourceURL);
 		if (path.isEmpty()) {
@@ -285,53 +294,42 @@ public class EDRResource {
 			path = "/" + path;
 		}
 		// handle security here
-		PublicUserInfo userInfo = new PublicUserInfo();
+//		PublicUserInfo userInfo = new PublicUserInfo();
+		
 		String commitMessage = null; // TODO: fixme
-//		UserInfo userInfo;
-//		try {
-//			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
-//		} catch (InvalidLoginInformationException e) {
-//			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
-//		}
+		UserInfo userInfo;
+		try {
+			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+		} catch (InvalidLoginInformationException e) {
+			return Response.status(Status.FORBIDDEN).entity(e.getMessage()).build();
+		}
 		System.out.println("EDR upload: " + resourceURL);
 		
 		try {
 			EnergyDataDescription edd = eddJson.toEDD();
-			System.out.println(edd);
-			System.out.println(edd.getEsdl());
-			System.out.println(edd.getImage());
 			Resource resource;
-//			boolean existResource = cdoManager.existResource(userInfo, path);
-//			if (existResource) {
-//				ResourceResult resourceResult = cdoManager.getResource(userInfo, path);
-//				resource = resourceResult.getCDOResource();
-//				resource.getContents().set(0, edd); // overwrite
-//			} else {
-				resource = new XMLResourceImpl();
-				resource.getContents().add(edd);
-//			}
+			resource = new XMLResourceImpl();
+			resource.getContents().add(edd);
 			CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, path, resource, commitMessage, false);
 			System.out.println(commitInfo);
-			
 		} catch (IOException e) {
+			log.severe(e.getMessage());
 			e.printStackTrace();
-			return Response.serverError().entity(getErrorAsJson("Error parsing input")).build();
-		} catch (ConcurrentAccessException e) {
+			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Error parsing input:" + e.getMessage())).build();
+		} catch (ConcurrentAccessException | IllegalStateException | TimeoutException |InterruptedException e) {
+			log.severe(e.getMessage());
 			e.printStackTrace();
-		} catch (IllegalStateException e) {
-			e.printStackTrace();
+			return Response.serverError().entity(getErrorAsJson("Internal server error" + e.getMessage())).build();
 		} catch (CommitException e) {
+			log.severe(e.getMessage());
 			e.printStackTrace();
+			return Response.serverError().entity(getErrorAsJson("Error storing to EDR:"+e.getMessage())).build();
 		} catch (PermissionDeniedException e) {
-			e.printStackTrace();
-		} catch (TimeoutException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+			return Response.status(Status.FORBIDDEN).entity(getErrorAsJson("Access denied: " + e.getMessage())).build();
 		}
 		
-		
-		return Response.ok().build();
+		//return Response.ok().build();
+		return Response.created(URI.create(path)).build();
 	}
 	
 	

@@ -36,7 +36,7 @@ import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
-import nl.tno.esdl.esdldrive.cdo.HubPermission;
+import nl.tno.esdl.esdldrive.cdo.DrivePermission;
 import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
@@ -65,7 +65,7 @@ public class CDORevisionResource {
 			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
 		}
 		
-		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
 		if (!permission.isAccessible()) {
 			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
 		}

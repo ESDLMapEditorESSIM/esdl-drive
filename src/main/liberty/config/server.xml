@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <server description="${project.name}">
 	
+	<config monitorInterval="10s" />
 	
 	<!--  These variable can be overriden by Env variables, e.g. KEYCLOAK_REALM -->
 	<!-- keycloak_realm URI, accessible by this service -->
@@ -34,7 +35,7 @@
         <feature>mpOpenAPI-1.1</feature>
         <feature>mpMetrics-2.3</feature>
 <!--         <feature>jwtSso-1.0</feature> -->
-<!--         <feature>mpJwt-1.1</feature> -->
+<!--          <feature>mpJwt-1.1</feature> -->
     </featureManager>
 
 	<httpAccessLogging id="accessLogging"/>
@@ -95,7 +96,7 @@
 
 
   <!-- com.ibm.ws.webcontainer*=all:HTTPChannel=all:GenericBNF=all -->
-	<logging traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all=enabled:nl.tno.*=all" consoleFormat="simple" maxFileSize="200"/> <!-- maxFiles="8"   -->
+	<logging traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all:nl.tno.*=all" consoleLogLevel="INFO" consoleFormat="SIMPLE" maxFileSize="20"/> <!-- maxFiles="8"   -->
 
 
 </server>

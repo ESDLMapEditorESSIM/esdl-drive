@@ -51,7 +51,7 @@ public class ResourceResult /*implements Closeable*/ {
 
 
 	public Date getLastModified() {
-		return new Date(cdoResource.getTimeStamp());
+		return new Date(cdoResource.cdoRevision(true).getTimeStamp());
 	}
 
 	public CDOResource getCDOResource() {

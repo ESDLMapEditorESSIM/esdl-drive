@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 
@@ -42,9 +43,9 @@ public class EnergyDataDescriptionJSON {
 	@Schema(description="The URL to a grafana dashboard when timeseries or profiles are described", required=false)
 	private String graphURL;
 	@JsonbProperty(nillable = false)
-	@Schema(description="The ESDL as XML string that is described by this EDD", required=true)
+	@Schema(description="The ESDL as XML string and Base64 encoded, that is described by this EDD", required=true)
 	private String esdl;
-	@Schema(description="Image and content type for this description", required=false, implementation = ImageJSON.class)
+	@Schema(description="Image and content type for this description. Image data should be Base64 encoded", required=false, implementation = ImageJSON.class)
 	private ImageJSON image;
 	@Schema(description="This is automatically generated based on the ESDL that is set.", required=false, readOnly=true)
 	private String esdlType;
@@ -76,7 +77,8 @@ public class EnergyDataDescriptionJSON {
 		String esdl = getEsdl();
 		if (esdl != null && !esdl.isEmpty()) {
 			byte[] esdlBytes = esdl.getBytes("UTF-8");
-			ByteArrayInputStream stream = new ByteArrayInputStream(esdlBytes);
+			byte[] decoded = Base64.getDecoder().decode(esdlBytes);
+			ByteArrayInputStream stream = new ByteArrayInputStream(decoded);
 			HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
 			XMLResourceImpl resource = new XMLResourceImpl();
 			resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
@@ -138,7 +140,8 @@ public class EnergyDataDescriptionJSON {
 				options.put(XMLResource.OPTION_ENCODING, "UTF-8");
 				try {
 					resource.save(byteArray, options);
-					json.setEsdl(byteArray.toString("UTF-8"));
+					byte[] encoded = Base64.getEncoder().encode(byteArray.toByteArray());
+					json.setEsdl(new String(encoded, "UTF-8"));
 				} catch (IOException e) {
 					e.printStackTrace();
 				}

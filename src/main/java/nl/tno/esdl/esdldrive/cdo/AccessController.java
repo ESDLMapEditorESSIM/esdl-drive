@@ -16,6 +16,7 @@
 
 package nl.tno.esdl.esdldrive.cdo;
 
+import java.util.Arrays;
 import java.util.List;
 
 import com.ibm.websphere.security.openidconnect.token.IdToken;
@@ -23,8 +24,8 @@ import com.ibm.websphere.security.openidconnect.token.IdToken;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 
 /**
- * Defines access control mechanisms for Mondaine CDO
- * This is based on the Keycloack user_group claim, the groups a user belongs to.
+ * Defines access control mechanisms for the ESDL Drive
+ * This is based on the Keycloack user_group_path claim, the groups a user belongs to.
  * 
  * @author werkmane
  *
@@ -37,6 +38,8 @@ public class AccessController {
 		Users
 	}
 	
+	public static List<String> readOnlyPaths = Arrays.asList("/edr/Public/");
+	
 	public static UserInfo userInfoFromToken(IdToken jwtToken) throws InvalidLoginInformationException {
 		return new UserInfo(jwtToken);
 	}
@@ -46,25 +49,41 @@ public class AccessController {
 		return false;
 	}
 	
-	public static HubPermission getPermission(String path, List<String> accessGroups) {
+	public static DrivePermission getPermission(String path, UserInfo userInfo) {
+		// Iterate over all groups and there access
+		// Groups in the token provide read/write access
+		// Groups in readOnlyPath only provide read-only access unless the user has edr-public-write role
+		List<String> accessGroups = userInfo.getGroups();
+		for (String readOnlyPath: readOnlyPaths) {
+			if (path.startsWith(readOnlyPath)) {
+				if (userInfo.hasPublicEDRWriteAccess()) {  // /edr/Public/Test vs /edr/Public/
+					// correct role to write to the EDR
+					return new DrivePermission(path, readOnlyPath, true, true);
+				} else {
+					// make read only path only accessible, not writable
+					return new DrivePermission(path, readOnlyPath, false, true);
+				}
+			}
+		}
 		for (String group: accessGroups) {
 			if (path.startsWith(group)) {
-				return new HubPermission(path, group, true, true);
+				return new DrivePermission(path, group, true, true);
 			} else if (group.startsWith(path)) {
-				// upper folders are not writable
-				return new HubPermission(path, group, false, true);
+				// upper folders are not writable, but accessible
+				return new DrivePermission(path, group, false, true);
 				
 			}
 		}
-		return new HubPermission(path, null, false, false);
+		return new DrivePermission(path, null, false, false);
 	}
 	
 	
 	
-	public static boolean canAccess(String path, List<String> accessGroups) {
+	public static boolean canAccess(String path, UserInfo userInfo) {
 		// path = /Users/ewoud.werkman@tno.nl/Vesta resultaten/vesta_output_warmtekeuze_per_buurt.esdl
 		// path = /Projects/Mondaine/Gooi en Vechtstreek/Test_energy_system.esdl
 		// path = /Organisations/TNO/MCS/Veluwe als PV park.esdl
+		List<String> accessGroups = userInfo.getGroups();
 		
 		for (String group: accessGroups) {
 			System.out.println("Checking " + path + " against " + group);

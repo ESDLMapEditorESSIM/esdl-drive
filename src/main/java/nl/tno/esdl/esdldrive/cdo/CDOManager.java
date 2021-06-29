@@ -27,11 +27,12 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,10 +41,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.context.Destroyed;
-import javax.enterprise.context.Initialized;
-import javax.inject.Singleton;
+import javax.inject.Inject;
 import javax.jms.IllegalStateException;
 
 import org.eclipse.emf.cdo.CDOObject;
@@ -56,7 +57,6 @@ import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
 import org.eclipse.emf.cdo.eresource.CDOResourceNode;
 import org.eclipse.emf.cdo.eresource.CDOTextResource;
-import org.eclipse.emf.cdo.internal.common.model.CDOPackageRegistryImpl;
 import org.eclipse.emf.cdo.net4j.CDONet4jSession;
 import org.eclipse.emf.cdo.net4j.CDONet4jSessionConfiguration;
 import org.eclipse.emf.cdo.net4j.CDONet4jUtil;
@@ -92,6 +92,7 @@ import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceFactoryImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.metrics.MetricUnits;
 import org.eclipse.microprofile.metrics.annotation.Gauge;
 import org.eclipse.net4j.Net4jUtil;
@@ -107,6 +108,10 @@ import org.eclipse.net4j.util.lifecycle.LifecycleUtil;
 import org.eclipse.net4j.util.om.OMPlatform;
 import org.eclipse.net4j.util.om.log.PrintLogHandler;
 import org.eclipse.net4j.util.om.trace.PrintTraceHandler;
+import org.emfjson.jackson.module.EMFModule;
+import org.emfjson.jackson.resource.JsonResource;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import esdl.EnergySystem;
 import esdl.EsdlFactory;
@@ -130,19 +135,19 @@ import nl.tno.esdl.esdldrive.util.ESDLUtil;
  * @author werkmane
  *
  */
-@Singleton
-//@ApplicationScoped --> gives timeout errors on the connection....
+//@Singleton
+@ApplicationScoped //--> gives timeout errors on the connection....
 public class CDOManager {
 	
 	//private final static long CONCURRENTWRITE_TIMEOUT_MINUTES = 10;
 	
 // Injecting Does not work somehow?
-//	@Inject
-//	@ConfigProperty(name = "CDO_REPOSITORY_NAME" /* , defaultValue = "mondaine" */)
+	@Inject
+	@ConfigProperty(name = "CDO_REPOSITORY_NAME" /* , defaultValue = "esdldrive" */)
 	private String cdoRepositoryName;
 
-//	@Inject
-//	@ConfigProperty(name = "CDO_SERVER_HOST" /* , defaultValue = "localhost:2036" */)
+	@Inject
+	@ConfigProperty(name = "CDO_SERVER_HOST" /* , defaultValue = "localhost:2036" */)
 	private String cdoServerHostName;
 
 	private CDONet4jSessionConfiguration configuration;
@@ -157,6 +162,7 @@ public class CDOManager {
 
 	private final static CDORevisionPrefetchingPolicy BIG_PREFETCHER = CDOUtil.createRevisionPrefetchingPolicy(1000);
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
+	private static final ObjectMapper jsonMapper = EMFModule.setupDefaultMapper();
 	
 	
 
@@ -166,8 +172,8 @@ public class CDOManager {
 		cdoRepositoryName = ConfigProvider.getConfig().getValue("CDO_REPOSITORY_NAME", String.class);
 		log.info("Config from ConfigProvider: CDO@:" + cdoServerHostName + "/" + cdoRepositoryName);
 		log.info("From environment: " + System.getenv("CDO_SERVER_HOST"));
-		setUpCDO();
-		new SessionDetailsManager(sessionMap);
+		//setUpCDO();
+		
 		
 		emfCompare = EMFCompare.builder().build();
 		emfCompareMergerRegistry = IMerger.RegistryImpl.createStandaloneInstance();
@@ -234,7 +240,7 @@ public class CDOManager {
 	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, Resource uploadedResource, String commitMessage, boolean overwrite)
 			throws ConcurrentAccessException, CommitException, PermissionDeniedException, IllegalStateException, TimeoutException, InterruptedException {
 		log.info("Starting storeResource transaction " + resourceName);
-		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(resourceName, userInfo);
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not writable by " + userInfo.getUserName());
 		}
@@ -267,18 +273,18 @@ public class CDOManager {
 					// update ES version manually: this triggers an update of the EnergySystem CDO object
 					// which makes it easier to load revisions of the whole ES as any change also
 					// triggers an update to the ES.
-					System.out.println("Setting ES version to " + uploadedES.getVersion());
+					log.info("Setting ES version to " + uploadedES.getVersion());
 				}
-				System.out.println("Database: " + esFromDatabase + ", input: " + uploadedEObject);
+				log.info("Database: " + esFromDatabase + ", input: " + uploadedEObject);
 				// Calculate differences and merge difference. Left = database, right is updated model
 				DefaultComparisonScope scope = new DefaultComparisonScope(fromDatabase, uploadedResource, null);
-				System.out.println("Creating comparision...");
+				log.info("Creating comparision...");
 				Comparison comparison = emfCompare.compare(scope); //, emfCompareMonitor);
 				if (comparison.getConflicts().size() > 0) {
 					// conflicts only happen in three-way compare, see org.eclipse.emf.compare.Conflict 
 					throw new MergeConfictException("Conflict(s) detected during saving.");
 				}
-				System.out.println("Merging differences: " + comparison.getDifferences().size() );
+				log.info("Merging differences: " + comparison.getDifferences().size() );
 // TODO check if this works:
 //				final BatchMerger batchMerger = new BatchMerger(emfCompareMergerRegistry);
 //				batchMerger.copyAllRightToLeft(comparison.getDifferences(), emfCompareMonitor);
@@ -286,7 +292,7 @@ public class CDOManager {
 				for (Diff diff: comparison.getDifferences()) {
 					createMergeDiffList(diffs, diff, 0);
 				}
-				System.out.println("Diff list size: " + diffs.size() );
+				log.info("Diff list size: " + diffs.size() );
 				while (!diffs.isEmpty()) {
 					Diff diff = diffs.removeLast(); // iterate from tail to head
 					IMerger merger = emfCompareMergerRegistry.getHighestRankingMerger(diff);
@@ -343,7 +349,7 @@ public class CDOManager {
 		} else {
 			resource.getContents().add(uploadedResource.getContents().get(0));
 		}
-		System.out.println("Committing transaction");
+		log.info("Committing transaction");
 		CDOCommitInfo commitInfo = transaction.commit();
 		// Cleanup
 		log.info("CommitInfo: " + commitInfo);
@@ -358,7 +364,7 @@ public class CDOManager {
 			if (!diffs.contains(req)) { 
 				diffs.addLast(req);
 				createMergeDiffList(diffs, req, depth+1);
-				System.out.println("RecursiveMerge depth:"+depth+1);
+				//System.out.println("RecursiveMerge depth:"+depth+1);
 			}
 		}
 	}
@@ -382,7 +388,7 @@ public class CDOManager {
 	 */
 	public ResourceResult getResource(UserInfo userInfo, String resourceName, Long revision) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
 		log.info("Starting getResource transaction");
-		HubPermission permission = AccessController.getPermission(resourceName, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(resourceName, userInfo);
 		if (!(userInfo.isAdmin() || permission.isAccessible())) {
 			throw new PermissionDeniedException(resourceName + " is not accessible by " + userInfo.getUserName());
 		}
@@ -397,7 +403,7 @@ public class CDOManager {
 			view.options().setRevisionPrefetchingPolicy(BIG_PREFETCHER);
 			if (revision!=null) {
 				// we need some special attention, as the filename might not be the same in earlier revisions
-				System.out.println("Retrieving revision " + revision);
+				log.info("Retrieving revision " + revision);
 				CDOView revisionView = session.openView(revision);
 				if (revisionView.hasResource(resourceName)) {
 					// file and path still exist in previous version
@@ -414,7 +420,7 @@ public class CDOManager {
 					}
 				}
 			} else {
-				System.out.println("Retrieving from database: " + resourceName);
+				log.info("Retrieving from database: " + resourceName);
 				// no revision just the latest version
 				resource = view.getResource(resourceName);
 			}
@@ -463,6 +469,33 @@ public class CDOManager {
 		
 		return resourceAsString;
 	}
+	
+	
+	public String convertToJSONString(CDOResource cdoResource) throws IOException {
+		LocalDateTime start = LocalDateTime.now();
+		
+		JsonResource resource = new JsonResource(URI.createURI(cdoResource.getName() + ".json"), jsonMapper);
+		EObject eObject = cdoResource.getContents().get(0);
+		EObject copy = EcoreUtil.copy(eObject);
+		resource.getContents().add(copy);
+		LocalDateTime stop = LocalDateTime.now();
+		log.info("Copy " + cdoResource.getPath() + " took " + Duration.between(start, stop));
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		HashMap<String, Object> options = new HashMap<String, Object>();
+		options.put(XMLResource.OPTION_ENCODING, "UTF-8");
+		try {
+			resource.save(outputStream, options);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	
+		String resourceAsJson = new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
+		
+		stop = LocalDateTime.now();
+		log.info("Serializing to JSON" + cdoResource.getPath() + " took " + Duration.between(start, stop));
+		
+		return resourceAsJson;
+	}
 
 	public boolean existResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException {
 		log.info("Starting existResource transaction");
@@ -471,7 +504,7 @@ public class CDOManager {
 		// create view
 		CDOView view = session.openView();
 
-		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
 		}
@@ -484,7 +517,7 @@ public class CDOManager {
 		return hasResource;
 	}
 	
-	public ResourceResult getPublicResource(String resourceURL) throws PermissionDeniedException {
+	public ResourceResult getPublicResource(String resourceURL) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
 		if (resourceURL.startsWith(UserInfo.PUBLIC_FOLDER) || resourceURL.startsWith(EDRResource.EDR_PUBLIC_FOLDER_PATH )) {
 			try {
 				// create anonymous session
@@ -505,33 +538,16 @@ public class CDOManager {
 		}
 	}
 
-	public ResourceMetadata getResourceMetaData(UserInfo userInfo, String resourceURL) throws CDOResourceNodeNotFoundException {
+	public ResourceMetadata getResourceMetaData(UserInfo userInfo, String resourceURL) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
 		log.info("Get metadata for " + resourceURL);
-		// Open session
+		// Open session 
+		// PRE: access is allowed
 		CDONet4jSession session = getSession(userInfo);
-
-		/*
-		 * // create view CDOView view = session.openView();
-		 * 
-		 * // Get or create resource CDOResource resource =
-		 * view.getResource(resourceURL); // $NON-NLS-1$
-		 * 
-		 * long timeStamp = resource.getTimeStamp(); log.info("Resource timestamp 1: "+
-		 * timeStamp);
-		 * 
-		 * ResourceMetadata resourceMetadata = new ResourceMetadata(timeStamp);
-		 * 
-		 * // clean up view.close();
-		 */		
-
-		
-		// TODO add accesscontrol
-		CDOTransaction transaction = session.openTransaction();
+		CDOView transaction = session.openView();
 		CDOResource resource2 = transaction.getResource(resourceURL);
-		log.info("Resource.getTimeStamp() = " + resource2.getTimeStamp());
-		long lastUpdateTime = transaction.getLastUpdateTime();
-		log.info("Transaction.getLastUpdateTime() = " + lastUpdateTime);
-		ResourceMetadata resourceMetadata = new ResourceMetadata(lastUpdateTime);
+		long timeStamp = resource2.cdoRevision(true).getTimeStamp();
+		log.info("HEAD getLastUpdateTime() = " + timeStamp);
+		ResourceMetadata resourceMetadata = new ResourceMetadata(timeStamp);
 		return resourceMetadata;
 
 	}
@@ -569,7 +585,7 @@ public class CDOManager {
 	private void createResourceList(EList<CDOResourceNode> nodes, ArrayList<String> list, UserInfo userInfo) {
 		for (CDOResourceNode cdoResourceNode : nodes) {
 			log.info(cdoResourceNode.eClass().getName() + ": " + cdoResourceNode.getPath());
-			if (userInfo.isAdmin() || AccessController.canAccess(cdoResourceNode.getPath(), userInfo.getGroups())) {
+			if (userInfo.isAdmin() || AccessController.canAccess(cdoResourceNode.getPath(), userInfo)) {
 				list.add(cdoResourceNode.getPath());
 				if (cdoResourceNode instanceof CDOResourceFolder) {
 					CDOResourceFolder cdoResourceFolder = (CDOResourceFolder) cdoResourceNode;
@@ -580,7 +596,8 @@ public class CDOManager {
 		}
 	}
 
-	@Initialized(ApplicationScoped.class)
+	//@Initialized(ApplicationScoped.class)
+	@PostConstruct
 	private void setUpCDO() {
 		System.out.println("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
 		log.info("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
@@ -603,12 +620,12 @@ public class CDOManager {
 			connector = TCPUtil.getConnector(container, cdoServerHostName);
 			LifecycleUtil.activate(connector);
 
-			configuration = CDONet4jUtil.createNet4jSessionConfiguration();
-			configuration.setConnector(connector);
-			configuration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
-			log.info("Signal timeout" + configuration.getSignalTimeout());
-			configuration.setSignalTimeout(600000);
-			configuration.addListener(cdoEventListener);
+//			configuration = CDONet4jUtil.createNet4jSessionConfiguration();
+//			configuration.setConnector(connector);
+//			configuration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
+//			log.info("Signal timeout" + configuration.getSignalTimeout());
+//			//configuration.setSignalTimeout(600000);
+//			configuration.addListener(cdoEventListener);
 
 			
 			// register EDR model
@@ -624,10 +641,12 @@ public class CDOManager {
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edr", new XMLResourceFactoryImpl()); 
 			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
-			CDOSession session = configuration.openNet4jSession();
-			session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
-			session.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
-			session.close();
+//			CDOSession session = configuration.openNet4jSession();
+//			session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
+//			session.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
+//			session.close();
+			
+			new SessionDetailsManager(sessionMap);
 		} catch (Exception e) {
 			log.severe("Error connecting to the CDO Server: " + e);
 			e.printStackTrace();
@@ -642,7 +661,7 @@ public class CDOManager {
 			
 			@Override
 			public void notifyEvent(IEvent event) {
-				System.out.println("Sessionconfiguration event: " + event);
+				log.fine("Sessionconfiguration event: " + event);
 				
 			}
 		});
@@ -650,16 +669,16 @@ public class CDOManager {
 		//sessionConfiguration.setMaxReconnectAttempts(50); // max 50 reconnection attempts
 		sessionConfiguration.setConnector(connector);
 		sessionConfiguration.setRepositoryName(cdoRepositoryName); // $NON-NLS-1$
-		sessionConfiguration.setSignalTimeout(300000);
+		sessionConfiguration.setSignalTimeout(60000);
 		log.info("Session signal timeout " + sessionConfiguration.getSignalTimeout());
 		sessionConfiguration.addListener(cdoEventListener);
 		sessionConfiguration.setUserID(userInfo.getUserName());
 		sessionConfiguration.setActivateOnOpen(true);
 		// Somehow this is necessary when starting up clean
-		CDOSession session = configuration.openNet4jSession();
-		session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
-		session.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
-		session.close();
+//		CDOSession session = configuration.openNet4jSession();
+//		session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
+//		session.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
+//		session.close();
 		return sessionConfiguration;		
 	}
 	
@@ -688,16 +707,21 @@ public class CDOManager {
 	      }
 	    };
 
-	private CDOPackageRegistryImpl cdoPackageRegistry;
 
-	
-	
-
-	@Destroyed(ApplicationScoped.class)
+	@PreDestroy
 	private void shutdownCDO() {
-		log.info("Shutting down CDO connection");
-		connector.close();
-		container.deactivate();
+		if (connector.isConnected()) {
+			log.info("Shutting down CDO connection....");
+			//container.deactivate();
+			connector.close();
+		}
+		Iterator<Entry<String, SessionDetails>> iterator = sessionMap.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Entry<String, SessionDetails> entry = iterator.next();
+			System.out.println("Closing session for: " + entry.getKey());
+			entry.getValue().getCDOSession().close(); // close session
+			iterator.remove();
+		}
 	}
 
 
@@ -719,7 +743,7 @@ public class CDOManager {
 		}
 		ArrayList<BrowserNode> list = new ArrayList<>();
 		for (CDOResourceNode node : nodes) {
-			HubPermission permission = AccessController.getPermission(node.getPath(), userInfo.getGroups());
+			DrivePermission permission = AccessController.getPermission(node.getPath(), userInfo);
 			if (permission.isAccessible()) {
 				BrowserNode browserNode = new BrowserNode(node.getName(), node.getPath());
 				browserNode.setWritable(permission.isWritable());
@@ -753,7 +777,7 @@ public class CDOManager {
 
 	public Map<String, Object> getContentSummary(UserInfo userInfo, String fileName) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
 		
-		HubPermission permission = AccessController.getPermission(fileName, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(fileName, userInfo);
 		if (!permission.isAccessible()) {
 			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
 		}
@@ -762,7 +786,7 @@ public class CDOManager {
 		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
 		CDOResourceNode resourceNode = transaction.getResourceNode(fileName);
-		System.out.println("ResourceNode: " + resourceNode);
+		//System.out.println("ResourceNode: " + resourceNode);
 		
 				
 		if (resourceNode instanceof CDOResourceFolder || fileName.equals("/")) {
@@ -774,7 +798,7 @@ public class CDOManager {
 		
 		CDOResource resource = transaction.getResource(fileName);
 			
-		System.out.println("Retrieving content summary for: " + fileName);
+		log.info("Retrieving content summary for: " + fileName);
 		map.put("fileName", resource.getName());
 		map.put("path", fileName);
 		EObject rootObject = resource.getContents().get(0); // load content
@@ -791,7 +815,7 @@ public class CDOManager {
 			while (resource.cdoHistory().isLoading()) {
 				resource.cdoHistory().waitWhileLoading(10);
 			}
-			System.out.println("History size count: " + resource.cdoHistory().size() + "." + es.cdoHistory().size());
+			//System.out.println("History size count: " + resource.cdoHistory().size() + "." + es.cdoHistory().size());
 			CDOCommitInfo commitInfo = es.cdoHistory().getFirstElement();
 			if (commitInfo != null) {
 				String commit = "";
@@ -802,7 +826,7 @@ public class CDOManager {
 				map.put("revisionVersion", resource.cdoRevision().getVersion() + "." + es.cdoRevision().getVersion());
 				map.put("lastChanged", es.cdoRevision().getTimeStamp());
 			} else {
-				System.out.println("No revisions present");
+				log.info("No revisions present");
 			}
 		}
 		
@@ -810,7 +834,7 @@ public class CDOManager {
 		// get properties of root object (EnergySystem)
 		EList<EStructuralFeature> eAllStructuralFeatures = rootObject.eClass().getEAllStructuralFeatures();
 		for(EStructuralFeature feature: eAllStructuralFeatures) {
-			if (feature instanceof EAttribute) {
+			if (feature instanceof EAttribute && rootObject.eIsSet(feature)) {
 				String name = feature.getName();
 				name = name.substring(0,1).toUpperCase() + name.substring(1);
 				map.put(rootObject.eClass().getName() + name, rootObject.eGet(feature));
@@ -839,7 +863,7 @@ public class CDOManager {
 	
 	
 	public String createFolder(UserInfo userInfo, String path) throws ConcurrentAccessException, CommitException, PermissionDeniedException {
-		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(path, userInfo);
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getUserGroup() + " is not accessible by " + userInfo.getUserName());
 		}
@@ -853,7 +877,7 @@ public class CDOManager {
 	}
 	
 	public String rename(UserInfo userInfo, String path, String newName) throws ConcurrentAccessException, CommitException, CDOResourceNodeNotFoundException, PermissionDeniedException {
-		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(path, userInfo);
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
 		}
@@ -872,7 +896,7 @@ public class CDOManager {
 	}
 	
 	public void deleteResource(UserInfo userInfo, String path) throws IOException, CDOResourceNodeNotFoundException, ConcurrentAccessException, CommitException, PermissionDeniedException {
-		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(path, userInfo);
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
 		}
@@ -894,7 +918,7 @@ public class CDOManager {
 
 
 	public String moveNode(UserInfo userInfo, String path, String newParentFolder) throws IOException, ConcurrentAccessException, CommitException, PermissionDeniedException {
-		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(path, userInfo);
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
 		}
@@ -907,7 +931,7 @@ public class CDOManager {
 			//resourceNode.setFolder(newFolder);
 			transaction.setCommitComment("Moved " + fileName + " -> " + newParentFolder);
 			resourceNode.setPath(newParentFolder + "/" + fileName);
-			System.out.println("New path: " + resourceNode.getPath()); 
+			log.info("Move node. New path: " + resourceNode.getPath()); 
 			transaction.commit();
 			String newPath =  resourceNode.getPath();
 			// update cache
@@ -954,8 +978,8 @@ public class CDOManager {
 
 
 	public String copyNode(UserInfo userInfo, String path, String newParentFolder) throws ConcurrentAccessException, CommitException, PermissionDeniedException {
-		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
-		HubPermission destinationPermission = AccessController.getPermission(newParentFolder, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(path, userInfo);
+		DrivePermission destinationPermission = AccessController.getPermission(newParentFolder, userInfo);
 		if (!permission.isAccessible() && !destinationPermission.isWritable()) {
 			throw new PermissionDeniedException(destinationPermission.getPath() + " is not accessible or writable by " + userInfo.getUserName());
 		}
@@ -966,7 +990,7 @@ public class CDOManager {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
 			if (resourceNode instanceof CDOResourceFolder) {
 				// TODO
-				System.out.println("Copying Folders is not implemented yet");
+				log.warning("Copying Folders is not implemented yet");
 			} else { // CDOResource or CDOFileResource
 				String fileName = resourceNode.getName();
 				//CDOResourceFolder newFolder = transaction.getResourceFolder(newParentFolder);
@@ -976,7 +1000,7 @@ public class CDOManager {
 				String uniqueName = createUniqueName(transaction, fileName, newParentFolder);
 				CDOResource copyResource = transaction.createResource(newParentFolder + "/" + uniqueName);
 				copyResource.getContents().add(copy);
-				System.out.println("Copy: New path: " + copyResource.getPath());
+				log.info("Copy: New path: " + copyResource.getPath());
 				transaction.setCommitComment("Copy " + fileName + " -> " + newParentFolder);
 				transaction.commit();
 				newPath = copyResource.getPath();
@@ -992,7 +1016,7 @@ public class CDOManager {
 	
 
 	public TreeSet<CDOCommitInfo> getRevisions(UserInfo userInfo, String path) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
-		HubPermission permission = AccessController.getPermission(path, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(path, userInfo);
 		if (!permission.isAccessible()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible or writable by " + userInfo.getUserName());
 		}
@@ -1087,7 +1111,7 @@ public class CDOManager {
 		try {
 			CDOQuery query = view.createQuery("sql", "SELECT cdo_id FROM " + tableName + " WHERE cdo_resource <> 0 AND cdo_revised = 0");
 			List<Object> result = query.getResult();
-			System.out.println(result.size());
+			//System.out.println(result.size());
 			if (result.size() > 0) System.out.println(result.get(0));
 			
 			for (Object e: result) {
@@ -1174,7 +1198,7 @@ public class CDOManager {
 						+ "FROM " + eddTableName + " o LEFT JOIN " + tagsTableName + " t ON o.cdo_id=t.cdo_source "
 						+ "WHERE o.cdo_resource <> 0 AND o.cdo_revised = 0 AND o.cdo_version=t.cdo_version AND " + totalFilter + order + limit + offset;
 			}
-			System.out.println("Query:" + sqlQuery);
+			log.info("EDD Query:" + sqlQuery);
 			CDOQuery query = view.createQuery("sql", sqlQuery);
 //			CDOQuery query = view.createQuery("ocl", "edr::EnergyDataDescription.allInstances()");
 //			CDOQuery query = view.createQuery("ocl", "EnergyDataDescription.allInstances()->select(e:EnergyDataDescription|e.tags.includes(self))",

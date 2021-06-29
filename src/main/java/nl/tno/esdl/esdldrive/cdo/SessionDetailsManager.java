@@ -25,7 +25,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
-class SessionDetailsManager {
+public class SessionDetailsManager {
 	
 	private static final Logger log = Logger.getLogger(SessionDetailsManager.class.getName());
 	

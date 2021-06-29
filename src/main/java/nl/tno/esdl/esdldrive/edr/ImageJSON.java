@@ -6,7 +6,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public class ImageJSON {
 		@Schema(description="Content-type of the image, e.g. image/png", implementation = String.class)
 		String contentType;
-		@Schema(description="A byte array representation of the image", implementation = String.class)
+		@Schema(description="A byte array representation of the image that is base64 encoded", implementation = String.class)
 		String imageData;
 		
 		

@@ -40,11 +40,14 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.SecurityContext;
 
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
+import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CDOUtil;
 import org.eclipse.emf.ecore.EObject;
@@ -67,7 +70,7 @@ import com.ibm.websphere.security.openidconnect.PropagationHelper;
 import esdl.EsdlPackage;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
-import nl.tno.esdl.esdldrive.cdo.HubPermission;
+import nl.tno.esdl.esdldrive.cdo.DrivePermission;
 import nl.tno.esdl.esdldrive.cdo.ResourceMetadata;
 import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
@@ -116,7 +119,7 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
 		
-		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
 		//System.out.println("Admin: " + userInfo.isAdmin());
 		//System.out.println("Acessible: " + permission.isAccessible());
 		if (!(userInfo.isAdmin() || permission.isAccessible())) {
@@ -155,17 +158,25 @@ public class CDOServerResource {
 	
 	@GET
 	@Path("/resource/public/{resourceURL:.+}")
-	@Produces(MediaType.APPLICATION_XML)
-	public Response getPublicResource(@PathParam("resourceURL") String resourceURL) {
+	@Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
+	@APIResponses({
+		@APIResponse(description = "Retrieves the file as JSON or XML", responseCode = "200", content = {
+				@Content(mediaType = "application/json"), 
+				@Content(mediaType = "application/xml")
+			})
+	})
+	public Response getPublicResource(@PathParam("resourceURL") String resourceURL, @Context HttpHeaders headers) {
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
 		}
 		resourceURL = UserInfo.PUBLIC_FOLDER + resourceURL; // make sure to look in public folders only
 		System.out.println("PUBLIC Retrieving " + resourceURL);
 		log.info("PUBLIC getResource() ResourceURL: " + resourceURL);
+		boolean jsonContentType = headers.getAcceptableMediaTypes().contains(MediaType.APPLICATION_JSON_TYPE);
+
 		// try to find it in the cache
 		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
-		if (cachedModel != null /*&& revision == null && !nocache*/) {
+		if (!jsonContentType && cachedModel != null /*&& revision == null && !nocache*/) {
 			log.fine("PUBLIC getResource(): Retrieving model from cache");
 			System.out.println("PUBLIC getResource(): Retrieving model from cache: " + resourceURL);
 			return Response.ok(cachedModel).build();
@@ -173,17 +184,22 @@ public class CDOServerResource {
 		try {
 			ResourceResult resourceResult = cdoManager.getPublicResource(resourceURL);
 			CDOResource cdoResource = resourceResult.getCDOResource();
-			String xmlString = cdoManager.convertToXMLString(cdoResource);
-			//log.info("Retrieved: " + xmlString);
-			if (xmlString == null) {
-				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
+			String result = null;
+			MediaType contentType = MediaType.APPLICATION_XML_TYPE;
+			if (jsonContentType) {
+				result = cdoManager.convertToJSONString(cdoResource);
+				contentType = MediaType.APPLICATION_JSON_TYPE;
+			} else {
+				result = cdoManager.convertToXMLString(cdoResource);
+				// currently only cache the latest XML version - not revisions
+				if (result != null && !result.isEmpty())
+					cdoManager.setCache(resourceURL, result, cdoResource);
 			}
-			resourceResult.getView().getSession().close();
-			
-			// currently only cache the latest version - not revisions
-			cdoManager.setCache(resourceURL,xmlString, cdoResource);
 			Date lastModified = resourceResult.getLastModified();
-			return Response.ok(xmlString).lastModified(lastModified).build();
+			resourceResult.getView().getSession().close();
+			return Response.ok(result).type(contentType).lastModified(lastModified).build();
+		} catch (CDOResourceNodeNotFoundException e) {
+			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
 			e.printStackTrace();
@@ -227,7 +243,7 @@ public class CDOServerResource {
 		} catch (InvalidLoginInformationException e) {
 			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
-		HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+		DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
 		System.out.println("putResource: " + resourceURL);
 		if (permission.isWritable()) {
 			
@@ -317,7 +333,7 @@ public class CDOServerResource {
 		try {
 			UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 			
-			HubPermission permission = AccessController.getPermission(resourceURL, userInfo.getGroups());
+			DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
 			if (!permission.isAccessible()) {
 				return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
 			}
@@ -361,7 +377,7 @@ public class CDOServerResource {
 	@RolesAllowed("cdo_read")
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(summary = "Invalidates the user session", description="Removes the current session with the server and the backend")
-	public Response logout(@Context HttpServletRequest servletRequest) {
+	public Response logout(@Context HttpServletRequest servletRequest, @Context SecurityContext securityContext) {
 		UserInfo userInfo;
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
@@ -378,6 +394,7 @@ public class CDOServerResource {
 					return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
 				}
 			}
+			System.out.println(securityContext);
 			return Response.ok().build();
 		} else {
 			return Response.serverError().status(Status.FORBIDDEN).build();

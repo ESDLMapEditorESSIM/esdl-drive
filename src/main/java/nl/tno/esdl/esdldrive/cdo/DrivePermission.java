@@ -16,12 +16,12 @@
 
 package nl.tno.esdl.esdldrive.cdo;
 
-public class HubPermission {
+public class DrivePermission {
 	private final String path;
 	private final boolean writable;
 	private final String userGroup;
 	private final boolean accessible;
-	public HubPermission(String path, String userGroup, boolean writable, boolean accessible) {
+	public DrivePermission(String path, String userGroup, boolean writable, boolean accessible) {
 		this.path = path;
 		this.userGroup = userGroup;
 		this.writable = writable;

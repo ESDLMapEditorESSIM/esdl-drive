@@ -19,6 +19,7 @@ package nl.tno.esdl.esdldrive.browser;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -140,7 +141,7 @@ public class BrowserController {
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
 		} catch (InvalidLoginInformationException e) {
-			return Response.serverError().status(Status.NETWORK_AUTHENTICATION_REQUIRED).entity(e.getMessage()).build();
+			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}        //System.out.println("Token: " + token);
         //System.out.println("NEW User groups:" +token.getClaim("user_group"));
         
@@ -194,7 +195,6 @@ public class BrowserController {
 					convertToActualType(contentBuilder, entry.getKey(), entry.getValue());
 				}
 				jsonObject = contentBuilder.build();
-				System.out.println(jsonObject);
 			} catch (PermissionDeniedException e) {
 				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 			}
@@ -218,7 +218,7 @@ public class BrowserController {
 					newPath = parentFolder + newName;
 				}
 				try {
-					System.out.println("Creating folder:" + newPath);
+					log.info("Creating folder:" + newPath);
 					String newFolder = cdoManager.createFolder(userInfo, newPath);
 					jsonObject = Json.createObjectBuilder().add("id", newFolder).build();
 				} catch (CommitException e) {
@@ -233,7 +233,6 @@ public class BrowserController {
 			break;
 		case rename_node:
 			String folderPath = id;
-			System.out.println(id);
 			try {
 				String renamedFolder = cdoManager.rename(userInfo, folderPath, newName);
 				jsonObject = Json.createObjectBuilder().add("id", renamedFolder).build();
@@ -337,7 +336,7 @@ public class BrowserController {
 //        	System.out.println("Groups: " + groups);
 //        }
         
-        System.out.println("Returning (" + op +") for " + userInfo.getUserName() + ": " + jsonObject);
+        //System.out.println("Returning (" + op +") for " + userInfo.getUserName() + ": " + jsonObject);
         return Response.accepted(jsonObject).build();
     }
     
@@ -360,6 +359,10 @@ public class BrowserController {
 			contentBuilder.add(key, (BigInteger)value);
 		} else if (value instanceof BigDecimal) {
 			contentBuilder.add(key, (BigDecimal)value);
+		} else if (value instanceof Date) {
+			contentBuilder.add(key, ((Date)value).toInstant().toString());
+		} else if (value instanceof Enum) {
+			contentBuilder.add(key, ((Enum<?>)value).name());
 		} else if (value instanceof List<?>) {
 			List<?> list = (List<?>)value;
 			// only add strings here
@@ -381,7 +384,7 @@ public class BrowserController {
     }
     
     private JsonArray getFolderContents(UserInfo userInfo, String path) {
-    	log.info("Get folder contents of "+ path);
+    	//log.info("Get folder contents of "+ path);
     	List<BrowserNode> folderContents = cdoManager.getFolderContents(userInfo, path);
     	JsonArrayBuilder arrayBuilder = buildFolderContents(folderContents);
     	    	
