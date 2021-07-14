@@ -1,14 +1,12 @@
 package nl.tno.esdl.esdldrive;
 
-import static org.junit.Assert.*;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import org.eclipse.emf.common.util.BasicMonitor;
-import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.common.util.BasicMonitor.Printing;
 import org.eclipse.emf.common.util.EList;
+import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.compare.Comparison;
 import org.eclipse.emf.compare.Conflict;
 import org.eclipse.emf.compare.Diff;
@@ -19,21 +17,16 @@ import org.eclipse.emf.compare.scope.DefaultComparisonScope;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
-import org.eclipse.emf.ecore.resource.Resource;
-import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
-
-import com.google.common.base.Strings;
 
 import esdl.Area;
 import esdl.EnergySystem;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
 import esdl.Instance;
-import esdl.util.EsdlResourceFactoryImpl;
 import esdl.util.EsdlResourceImpl;
 import nl.tno.esdl.esdldrive.cdo.exceptions.MergeConfictException;
 
@@ -150,6 +143,7 @@ public class EMFCompareTest {
 		
 	}
 	
+	@SuppressWarnings("unused")
 	private void printES(EObject es, int depth) {
 		EList<EAttribute> eAllAttributes = es.eClass().getEAttributes();
 		String indent = "";

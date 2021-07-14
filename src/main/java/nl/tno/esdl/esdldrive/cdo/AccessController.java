@@ -32,13 +32,15 @@ import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
  */
 public class AccessController {
 	
-	public enum FolderType {
-		Organizations,
-		Projects,
-		Users
-	}
 	
-	public static List<String> readOnlyPaths = Arrays.asList("/edr/Public/");
+	public static final String PERSONAL_FOLDER_PREFIX = "/Users/";
+	public static final String PUBLIC_FOLDER = "/Public/";
+	public static final String DRIVE_PUBLIC_FOLDER = PUBLIC_FOLDER;
+	public static final String EDR_FOLDER_NAME = "edr";
+	public static final String EDR_PUBLIC_FOLDER_PATH = "/" + EDR_FOLDER_NAME + PUBLIC_FOLDER;
+	
+	
+	public static List<String> readOnlyPaths = Arrays.asList(EDR_PUBLIC_FOLDER_PATH); 
 	
 	public static UserInfo userInfoFromToken(IdToken jwtToken) throws InvalidLoginInformationException {
 		return new UserInfo(jwtToken);

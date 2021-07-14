@@ -31,7 +31,7 @@ Manager:
 		#data, #code { font: normal normal normal 12px/18px 'Consolas', monospace !important; }
 
 		#tree .file-esdl { background:url('/icons/esdl.png') right bottom no-repeat; }
-		#tree .file-edr { background:url('/icons/edd_16.png') right bottom no-repeat; }
+		#tree .file-edd { background:url('/icons/edd_16.png') right bottom no-repeat; }
 		#tree .folder-edr { background:url('/icons/edr3.png') right bottom no-repeat; }
 		#tree .folder-drive { background:url('/icons/ESDLDrive-16.png') right bottom no-repeat; }
 		#tree .folder { background:url('/icons/file_sprite.png') right bottom no-repeat; }
@@ -233,7 +233,7 @@ Manager:
 								$('#data .content').hide();
 								switch(d.type) {
 									case 'esdl':
-									case 'edr':
+									case 'edd':
 										console.log(d);
 										$t = $('<table>');
 										for (let attr in d) {

@@ -20,24 +20,24 @@ import org.junit.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import edd.EddFactory;
+import edd.EddPackage;
+import edd.EnergyDataDescription;
+import edd.Image;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
 import esdl.WindTurbine;
 import esdl.WindTurbineTypeEnum;
-import nl.tno.edr.EDRFactory;
-import nl.tno.edr.EDRPackage;
-import nl.tno.edr.EnergyDataDescription;
-import nl.tno.edr.Image;
 
 public class EDRTest {
 	
-	private static final EDRFactory EDR = EDRFactory.eINSTANCE;
+	private static final EddFactory EDR = EddFactory.eINSTANCE;
 	ObjectMapper mapper = EMFModule.setupDefaultMapper();
 
 	@Test
 	public void testClasses() throws IOException {
 		
-		EnergyDataDescription energyDataDescription = EDRFactory.eINSTANCE.createEnergyDataDescription();
+		EnergyDataDescription energyDataDescription = EddFactory.eINSTANCE.createEnergyDataDescription();
 		WindTurbine windTurbine = EsdlFactory.eINSTANCE.createWindTurbine();
 		windTurbine.setName("ETM WindTurbine 3MW");
 		windTurbine.setType(WindTurbineTypeEnum.WIND_ON_COAST);
@@ -87,12 +87,13 @@ public class EDRTest {
 		return resourceAsJson;
 	}
 	
-	private String saveEObjectTpJSON(EObject model) throws IOException { 
+	@SuppressWarnings("unused")
+	private String saveEObjectToJSON(EObject model) throws IOException { 
 	    ResourceSet resourceSet = new ResourceSetImpl();
 	    resourceSet.getResourceFactoryRegistry().getExtensionToFactoryMap().put(Resource.Factory.Registry.DEFAULT_EXTENSION, new JsonResourceFactory());
 
 	    resourceSet.getPackageRegistry().put(EsdlPackage.eINSTANCE.getNsURI(), EsdlPackage.eINSTANCE);
-	    resourceSet.getPackageRegistry().put(EDRPackage.eINSTANCE.getNsURI(), EDRPackage.eINSTANCE);
+	    resourceSet.getPackageRegistry().put(EddPackage.eINSTANCE.getNsURI(), EddPackage.eINSTANCE);
 	    Resource resource = resourceSet.createResource(URI.createURI("*.json"));
 	    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 	    //InputStream stream = new ByteArrayInputStream(model.getBytes(StandardCharsets.UTF_8));

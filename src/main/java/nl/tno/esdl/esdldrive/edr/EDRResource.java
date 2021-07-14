@@ -1,7 +1,8 @@
 package nl.tno.esdl.esdldrive.edr;
 
 import java.io.IOException;
-import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import javax.jms.IllegalStateException;
@@ -37,6 +39,7 @@ import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CommitException;
 import org.eclipse.emf.cdo.util.ConcurrentAccessException;
+import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
@@ -52,7 +55,7 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
-import nl.tno.edr.EnergyDataDescription;
+import edd.EnergyDataDescription;
 import nl.tno.esdl.esdldrive.browser.BrowserController;
 import nl.tno.esdl.esdldrive.browser.BrowserController.BrowseOperation;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
@@ -68,8 +71,7 @@ import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 @Path("/edr")
 public class EDRResource {
 	
-	public static final String EDR_FOLDER_NAME = "edr";
-	public static final String EDR_PUBLIC_FOLDER_PATH = "/" + EDR_FOLDER_NAME + UserInfo.PUBLIC_FOLDER;
+	
 	Logger log = Logger.getLogger(this.getClass().getName());
 	
 	@Inject
@@ -101,13 +103,12 @@ public class EDRResource {
 		
 		
 		
-		// allow only browsing from /public
+		// allow only browsing from /edr/public
 		if (!id.startsWith("/")) id = "/" + id;
-		if (!id.toLowerCase().startsWith("/public")) {
+		if (!id.toLowerCase().startsWith("/edr/public")) {
 			return Response.status(Status.UNAUTHORIZED).entity(getErrorAsJson("Not a public folder")).build();
-		}
-		
-		String path = "/" + EDR_FOLDER_NAME + id; 
+		}		 
+		String path = URI.decode(id);
 		
 		PublicUserInfo userInfo = new PublicUserInfo();
 		System.out.println("Browse public EDR: " + path);
@@ -151,12 +152,17 @@ public class EDRResource {
 		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/Public/ETM/ETM WindTurbine.esdl"),
 	})
 	public Response getPublicEDRESDL(@PathParam("resourceURL") String resourceURL) {
-		String path = new String(resourceURL);
-		if (!resourceURL.startsWith("/")) {
+		String path = URI.decode(resourceURL);
+		if (!path.startsWith("/")) {
 			path = "/" + resourceURL;
 		}
+		// add /edr in front if resourceURL does not start with it (as endpoint is /store/edr
+		if (!path.startsWith("/" + AccessController.EDR_FOLDER_NAME)) {
+			path = "/" + AccessController.EDR_FOLDER_NAME + path;
+		}
 		
-		path = "/" + EDR_FOLDER_NAME + path;
+		PublicUserInfo userInfo = new PublicUserInfo();
+		
 		System.out.println("PUBLIC EDR Retrieving " + path);
 		
 		String cachedModel = cdoManager.getCachedModelXML(path);
@@ -166,7 +172,7 @@ public class EDRResource {
 			return Response.ok(cachedModel).build();
 		}
 		try {
-			ResourceResult resourceResult = cdoManager.getPublicResource(path);
+			ResourceResult resourceResult = cdoManager.getPublicResource(userInfo, path);
 			CDOResource cdoResource = resourceResult.getCDOResource();
 			String xmlString = cdoManager.convertToXMLString(cdoResource);
 			//log.info("Retrieved: " + xmlString);
@@ -233,15 +239,16 @@ public class EDRResource {
 		PublicUserInfo userInfo = new PublicUserInfo();
 		
 		if (path != null && !path.isEmpty()) {
+			path = URI.decode(path);
 			if (!path.startsWith("/")) path = "/" + path;
 			try {
-				ResourceResult publicResource = cdoManager.getPublicResource(path);
+				ResourceResult publicResource = cdoManager.getPublicResource(userInfo, path);
 				CDOResource cdoResource = publicResource.getCDOResource();
 				EObject eObject = cdoResource.getContents().get(0);
 				if (eObject instanceof EnergyDataDescription) {
 					EnergyDataDescription energyDataDescription = (EnergyDataDescription) eObject;
 					EnergyDataDescriptionJSON dataDescriptionJSON = EnergyDataDescriptionJSON.fromEDD(energyDataDescription, addImageData, addESDL);
-					return Response.ok(dataDescriptionJSON).build();
+					return Response.ok(Collections.singletonList(dataDescriptionJSON)).build();
 				} else {
 					return Response.serverError().entity(getErrorAsJson("Not an EnergyDataDescription")).build();
 				}
@@ -272,7 +279,7 @@ public class EDRResource {
 	
 	
 	
-	//@RolesAllowed("cdo_read")
+	@RolesAllowed("cdo_read")
 	@POST
 	@Path("/upload/{resourceURL:.+}")
 	@Operation(summary="Upload a new Energy Data Description to the EDR")
@@ -285,16 +292,14 @@ public class EDRResource {
 		@APIResponse(responseCode = "201", description = "Upload successful, created resource at resourceURL"),
 		@APIResponse(responseCode = "403", description = "Access denied, provide proper credentials")
 	})
-	public Response upload(EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL) {
-		String path = new String(resourceURL);
+	public Response upload(EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL) throws URISyntaxException {
+		String path = URI.decode(resourceURL);
 		if (path.isEmpty()) {
 			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Missing path and filename of this EDD in EDR. Put it after the url /upload/<path to store>")).build();
 		}
 		if (!path.startsWith("/")) {
 			path = "/" + path;
 		}
-		// handle security here
-//		PublicUserInfo userInfo = new PublicUserInfo();
 		
 		String commitMessage = null; // TODO: fixme
 		UserInfo userInfo;
@@ -329,7 +334,9 @@ public class EDRResource {
 		}
 		
 		//return Response.ok().build();
-		return Response.created(URI.create(path)).build();
+		// convert spaces to %20 if needed in URI fragments
+		String fileUri = URI.encodeFragment(resourceURL, true);
+		return Response.created(java.net.URI.create(fileUri)).build();
 	}
 	
 	

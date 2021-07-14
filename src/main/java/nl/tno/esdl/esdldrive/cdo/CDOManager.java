@@ -113,20 +113,19 @@ import org.emfjson.jackson.resource.JsonResource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import edd.EddFactory;
+import edd.EddPackage;
+import edd.EnergyDataDescription;
 import esdl.EnergySystem;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
 import esdl.util.EsdlResourceFactoryImpl;
-import nl.tno.edr.EDRFactory;
-import nl.tno.edr.EDRPackage;
-import nl.tno.edr.EnergyDataDescription;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
 import nl.tno.esdl.esdldrive.browser.BrowserNode.BrowserNodeType;
 import nl.tno.esdl.esdldrive.cdo.cache.CachedModel;
 import nl.tno.esdl.esdldrive.cdo.cache.LRUCache;
 import nl.tno.esdl.esdldrive.cdo.exceptions.MergeConfictException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
-import nl.tno.esdl.esdldrive.edr.EDRResource;
 import nl.tno.esdl.esdldrive.edr.SearchESDLType;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
@@ -150,7 +149,6 @@ public class CDOManager {
 	@ConfigProperty(name = "CDO_SERVER_HOST" /* , defaultValue = "localhost:2036" */)
 	private String cdoServerHostName;
 
-	private CDONet4jSessionConfiguration configuration;
 	private IConnector connector;
 	private IManagedContainer container;
 	
@@ -517,19 +515,17 @@ public class CDOManager {
 		return hasResource;
 	}
 	
-	public ResourceResult getPublicResource(String resourceURL) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
-		if (resourceURL.startsWith(UserInfo.PUBLIC_FOLDER) || resourceURL.startsWith(EDRResource.EDR_PUBLIC_FOLDER_PATH )) {
+	public ResourceResult getPublicResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
+		if (resourceURL.startsWith(AccessController.PUBLIC_FOLDER) || resourceURL.startsWith(AccessController.EDR_PUBLIC_FOLDER_PATH )) {
 			try {
-				// create anonymous session
-				CDONet4jSession session = configuration.openNet4jSession();
+				CDONet4jSession session = getSession(userInfo);
 				CDOView view = session.openView();
 				view.options().setRevisionPrefetchingPolicy(BIG_PREFETCHER);
 				CDOResource resource = view.getResource(resourceURL);
 				ResourceResult resourceResult = new ResourceResult(resource, view);
 				log.info("getPulicResource Retrieved: " + resource.getName());
 				return resourceResult;
-			} catch (Exception e) {
-				e.printStackTrace();
+			} catch (Exception e) {				
 				throw e;
 			}	
 			
@@ -629,17 +625,17 @@ public class CDOManager {
 
 			
 			// register EDR model
-			EDRFactory.eINSTANCE.eClass();
+			EddFactory.eINSTANCE.eClass();
 			// Register ESDL
 			// make sure ESDL is loaded here.
 			EsdlFactory.eINSTANCE.eClass();
 			EPackage.Registry ePackageRegistry = EPackage.Registry.INSTANCE;
 			ePackageRegistry.put(EsdlPackage.eNS_URI, EsdlPackage.eINSTANCE);
-			ePackageRegistry.put(EDRPackage.eNS_URI, EDRPackage.eINSTANCE);
+			ePackageRegistry.put(EddPackage.eNS_URI, EddPackage.eINSTANCE);
 			// register esdl resources with extension .esdl
 			
 			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
-			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edr", new XMLResourceFactoryImpl()); 
+			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edd", new XMLResourceFactoryImpl()); 
 			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
 //			CDOSession session = configuration.openNet4jSession();
 //			session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
@@ -735,7 +731,7 @@ public class CDOManager {
 			nodes = transaction.getRootResource().getContents()
 					.stream().filter(CDOResourceNode.class::isInstance)
 					.map(CDOResourceNode.class::cast)
-					.filter(rn -> !rn.getName().equals(EDRResource.EDR_FOLDER_NAME))
+					.filter(rn -> !rn.getName().equals(AccessController.EDR_FOLDER_NAME))
 					.collect(Collectors.toCollection(BasicEList::new));
 		} else {		
 			CDOResourceFolder resourceNode = transaction.getResourceFolder(path);
@@ -759,12 +755,15 @@ public class CDOManager {
 					browserNode.setType(BrowserNodeType.TEXT);
 				} else if (node instanceof CDOResource) {
 					String extension = getExtension(node.getName());
-					browserNode.setType(BrowserNodeType.ESDL_FILE);
+					browserNode.setType(BrowserNodeType.OTHER);
 					//if (extension.equalsIgnoreCase("esdl")) {
 					//	browserNode.setType(BrowserNodeType.ESDL_FILE);
 					//} else 
-					if (extension.equalsIgnoreCase("edr")) {
-						browserNode.setType(BrowserNodeType.EDR_FILE);
+					if (extension.equalsIgnoreCase("edd")) {
+						browserNode.setType(BrowserNodeType.EDD_FILE);
+					}
+					if (extension.equalsIgnoreCase("esdl")) {
+						browserNode.setType(BrowserNodeType.ESDL_FILE);
 					}
 				}
 				list.add(browserNode);
@@ -801,7 +800,9 @@ public class CDOManager {
 		log.info("Retrieving content summary for: " + fileName);
 		map.put("fileName", resource.getName());
 		map.put("path", fileName);
+		//map.put("type", getExtension(resource.getName())); // default type based on extension
 		EObject rootObject = resource.getContents().get(0); // load content
+		map.put("type", getObjectType(rootObject));
 		resource.cdoHistory().setLoadCount(1);
 		resource.cdoHistory().triggerLoad();
 		if (rootObject instanceof CDOObject) {
@@ -842,7 +843,7 @@ public class CDOManager {
 		}
 		map.put("esdlType", rootObject.eClass().getName());
 		
-		map.put("type", getExtension(resource.getName()));
+		
 		map.put("writable", permission.isWritable());
 		boolean cached = getCache().containsKey(fileName);
 		map.put("cached", cached);
@@ -859,6 +860,14 @@ public class CDOManager {
 		} else {
 			return resourceName.substring(lastIndexOf+1);
 		}
+	}
+	
+	private String getObjectType(EObject object) {
+		return object.eClass().getEPackage().getName().toLowerCase();
+//		switch(object.eClass().getEPackage().getNsURI()) {
+//		case EsdlPackage.eNS_URI:
+//			return 
+//		}
 	}
 	
 	
@@ -1064,20 +1073,24 @@ public class CDOManager {
 	 * @param userInfo
 	 */
 	public void ensureUserFoldersPresent(UserInfo userInfo) {
-		CDONet4jSession session = getSession(userInfo);
-		CDOTransaction transaction = session.openTransaction();
-		log.info("Ensuring initial groups for user " + userInfo.getUserName());
-		for (String group: userInfo.getGroups()) {
-			transaction.getOrCreateResourceFolder(group);
-		}
-		
-		try {
-			transaction.setCommitComment("Created folder");
-			transaction.commit();
-		} catch (ConcurrentAccessException e) {
-			e.printStackTrace();
-		} catch (CommitException e) {
-			e.printStackTrace();
+		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
+		if (sessionDetails != null && !sessionDetails.isFoldersPresent()) {
+			CDONet4jSession session = sessionDetails.getCDOSession();
+			CDOTransaction transaction = session.openTransaction();
+			log.info("Ensuring initial groups for user " + userInfo.getUserName());
+			for (String group: userInfo.getGroups()) {
+				transaction.getOrCreateResourceFolder(group);
+			}
+			
+			try {
+				transaction.setCommitComment("Created folder");
+				transaction.commit();
+				sessionDetails.setFoldersPresent(true);
+			} catch (ConcurrentAccessException e) {
+				e.printStackTrace();
+			} catch (CommitException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
@@ -1100,7 +1113,7 @@ public class CDOManager {
 	public List<EDRQueryResult> query(SearchESDLType type, UserInfo userInfo) {
 		CDONet4jSession session = getSession(userInfo);
 		CDOView view = session.openView();
-		CDOResourceFolder edrFolder = view.getResourceFolder("/"+EDRResource.EDR_FOLDER_NAME);
+		CDOResourceFolder edrFolder = view.getResourceFolder("/"+AccessController.EDR_FOLDER_NAME);
 		
 		List<EDRQueryResult> queryResult = new ArrayList<EDRQueryResult>();
 		
@@ -1143,8 +1156,8 @@ public class CDOManager {
 		CDONet4jSession session = getSession(userInfo);
 		CDOView view = session.openView();
 		//CDOResourceFolder edrFolder = view.getResourceFolder("/"+EDRResource.EDR_FOLDER_NAME);
-		String eddTableName = "edr_EnergyDataDescription";
-		String tagsTableName = "edr_energydatadescription_tags_list";
+		String eddTableName = "edd_EnergyDataDescription";
+		String tagsTableName = "edd_energydatadescription_tags_list";
 		List<String> tagsFilter = new ArrayList<>(); 
 		List<String> eddFilter = new ArrayList<>();
 		String limit = "";

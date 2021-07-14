@@ -69,7 +69,6 @@ import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
-import nl.tno.esdl.esdldrive.edr.EDRResource;
 
 /**
  * @author werkmane
@@ -173,7 +172,7 @@ public class BrowserController {
 						.build();
 				JsonObject edr = Json.createObjectBuilder().add("text", "Energy Data Repository")
 						.add("children", true)
-						.add("id", "/" + EDRResource.EDR_FOLDER_NAME)
+						.add("id", "/" + AccessController.EDR_FOLDER_NAME)
 						.add("icon", BrowserNodeType.EDR.getIconName())
 						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();

@@ -20,9 +20,10 @@ import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-import nl.tno.edr.EDRFactory;
-import nl.tno.edr.EnergyDataDescription;
-import nl.tno.edr.Image;
+import edd.EddFactory;
+import edd.EnergyDataDescription;
+import edd.Image;
+
 
 @JsonbPropertyOrder({"id","title","description","version","tags","image", "esdlType", "esdl"})
 @Schema(name="EnergyDataDescription", description="Json that describes an Energy Data Description (EDD) in the EDR, i.e. metadata for an EDR entry")
@@ -65,9 +66,9 @@ public class EnergyDataDescriptionJSON {
 	}
 	
 	public EnergyDataDescription toEDD() throws IOException {
-		EnergyDataDescription edd = EDRFactory.eINSTANCE.createEnergyDataDescription();
+		EnergyDataDescription edd = EddFactory.eINSTANCE.createEnergyDataDescription();
 		edd.setTitle(title);
-		edd.setId(id);
+		//edd.setId(id);
 		edd.setDescription(description);
 		edd.setGraphURL(graphURL);
 		edd.setVersion(version);
@@ -82,7 +83,7 @@ public class EnergyDataDescriptionJSON {
 			HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
 			XMLResourceImpl resource = new XMLResourceImpl();
 			resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
-			resource.getDefaultLoadOptions().put(XMLResource.OPTION_RECORD_UNKNOWN_FEATURE, Boolean.TRUE);
+			//resource.getDefaultLoadOptions().put(XMLResource.OPTION_RECORD_UNKNOWN_FEATURE, Boolean.TRUE);
 			resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
 			resource.load(stream, null);
 			EObject esdlObject = resource.getContents().get(0);
@@ -94,7 +95,7 @@ public class EnergyDataDescriptionJSON {
 		
 		if (image != null && image.getImageData() != null) {
 			// no data, no image
-			Image edrImage = EDRFactory.eINSTANCE.createImage();
+			Image edrImage = EddFactory.eINSTANCE.createImage();
 			edrImage.setContentType(image.getContentType());
 			byte[] imageBytes = image.getImageData().getBytes("UTF-8");
 			edrImage.setImageData(imageBytes);
@@ -126,7 +127,11 @@ public class EnergyDataDescriptionJSON {
 				CDORevision cdoRevision = cdoObject.cdoRevision(true);
 				if (cdoRevision != null) {					
 					json.setLastChanged(cdoRevision.getTimeStamp());
-					json.setVersion(json.getVersion() + "-R" + cdoRevision.getVersion());
+					if (json.getVersion() != null) {
+						json.setVersion(json.getVersion() + "-R" + cdoRevision.getVersion());
+					} else {
+						json.setVersion(String.valueOf(cdoRevision.getVersion()));
+					}
 				} else {
 					System.out.println("No last change date for " + edd.cdoDirectResource().getPath());
 				}

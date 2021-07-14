@@ -29,6 +29,7 @@ public class SessionDetails {
 	private final CDONet4jSessionConfiguration sessionConfiguration;
 	private final UserInfo userInfo;
 	private long lastUsed = System.currentTimeMillis();
+	private boolean foldersPresent = false;
 
 	public SessionDetails(CDONet4jSessionConfiguration sessionConfiguration, UserInfo userInfo) {
 		this.sessionConfiguration = sessionConfiguration;
@@ -69,5 +70,13 @@ public class SessionDetails {
 
 	public void logout() {
 		cdoSession.close();
+	}
+
+	public boolean isFoldersPresent() {
+		return foldersPresent;
+	}
+
+	public void setFoldersPresent(boolean foldersPresent) {
+		this.foldersPresent = foldersPresent;
 	}
 }

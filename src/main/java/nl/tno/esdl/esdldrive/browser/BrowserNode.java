@@ -23,7 +23,7 @@ public class BrowserNode {
 	
 	public enum BrowserNodeType {
 		ESDL_FILE("file-esdl"),
-		EDR_FILE("file-edr"),
+		EDD_FILE("file-edd"),
 		FOLDER("folder"),
 		BINARY("file"),
 		TEXT("file-text"),

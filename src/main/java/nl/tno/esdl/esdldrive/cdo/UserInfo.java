@@ -22,13 +22,18 @@ import java.util.Map;
 
 import com.ibm.websphere.security.openidconnect.token.IdToken;
 
+/**
+ * Immutable class that creates user login info from a JWT token. Is created on every request, currently.
+ * (should be added to the session)
+ * @author werkmane
+ *
+ */
 public class UserInfo {
 	
 	private static final String USER_NAME_CLAIM = "email";
 	private static final String FULL_NAME_CLAIM = "name";
 	private static final String USER_GROUP_PATH_CLAIM = "user_group_path";
-	private static final String PERSONAL_FOLDER_PREFIX = "/Users/";
-	public static final String PUBLIC_FOLDER = "/Public";
+	
 	
 	
 	/**
@@ -55,9 +60,10 @@ public class UserInfo {
 	private final String userName;
 	private final String fullName;
 	private final List<String> groups = new ArrayList<String>();
-	private boolean admin = false;
-	private boolean edrWrite = false;
-	private boolean publicUser = false;
+	private final boolean admin;
+	private final boolean edrWrite;
+	private final boolean publicUser;
+	
 	
 	
 	@SuppressWarnings("unchecked")
@@ -69,6 +75,7 @@ public class UserInfo {
 			this.userName = (String)jwtToken.getClaim(USER_NAME_CLAIM);
 			this.fullName = (String)jwtToken.getClaim(FULL_NAME_CLAIM); 
 			this.admin  = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_ROLES_ADMIN);
+			this.publicUser = false;
 			this.edrWrite = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_EDR_PUBLIC_WRITE);
 			if (jwtToken.getClaim(USER_GROUP_PATH_CLAIM) != null && jwtToken.getClaim(USER_GROUP_PATH_CLAIM) instanceof List) {
 				groups.addAll((List<String>)jwtToken.getClaim(USER_GROUP_PATH_CLAIM));
@@ -77,7 +84,7 @@ public class UserInfo {
 			}
 			
 			// add personal folder to groups
-			groups.add(PERSONAL_FOLDER_PREFIX + this.userName);
+			groups.add(AccessController.PERSONAL_FOLDER_PREFIX + this.userName);
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InvalidLoginInformationException(e);
@@ -86,11 +93,13 @@ public class UserInfo {
 	}
 	
 	protected UserInfo() {
+		this.admin = false;
 		this.userId = "public";
 		this.userName = "publicUser";
 		this.fullName = "Public User";
 		this.publicUser = true;
-		this.groups.add(PUBLIC_FOLDER);
+		this.edrWrite = false;
+		this.groups.add(AccessController.PUBLIC_FOLDER);
 	}
 	
 	
@@ -159,6 +168,7 @@ public class UserInfo {
 		return publicUser;
 	}
 
+	
 	public class InvalidLoginInformationException extends Exception {
 		private static final long serialVersionUID = 1L;
 		public InvalidLoginInformationException(Exception ex) {

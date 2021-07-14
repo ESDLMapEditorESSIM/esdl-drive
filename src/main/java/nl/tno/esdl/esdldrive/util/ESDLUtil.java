@@ -1,6 +1,5 @@
 package nl.tno.esdl.esdldrive.util;
 
-import java.text.CharacterIterator;
 import java.text.StringCharacterIterator;
 import java.util.stream.Collectors;
 

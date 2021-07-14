@@ -25,15 +25,12 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import javax.enterprise.context.RequestScoped;
-import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
-import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
@@ -86,7 +83,8 @@ public class ESDLValidator {
 	})
 	public Response validateESDL(@RequestBody(description = "ESDL content in XML format", name = "esdlStream", 
 				content = {
-					@Content(example = "<?xml version=\"1.0\" encoding=\"UTF-8\">\n<esdl:EnergySystem ...></esdl:EnergySystem", 
+					@Content(example = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<esdl:EnergySystem xmlns:esdl=\"http://www.tno.nl/esdl\">\r\n"
+							+ "</esdl:EnergySystem>", 
 							schema = @Schema(required = true, format="XML String", description = "ESDL content"))
 				}
 			)
@@ -112,7 +110,7 @@ public class ESDLValidator {
 		try {
 			resource.load(esdlStream, null);
 			//resource.setURI(URI.createURI("https://esdldrive/input.esdl"));
-			System.out.println("Validating :" + ESDLUtil.eObjectToString(resource.getContents().get(0), true));
+			log.info("Validating :" + ESDLUtil.eObjectToString(resource.getContents().get(0), true));
 			ValidationStatus validationStatus = validateConformance(resource);
 			validationStatus.setValidationInput("Validated: " + ESDLUtil.eObjectToString(resource.getContents().get(0), false));
 			return Response.ok(validationStatus).build();
@@ -127,7 +125,7 @@ public class ESDLValidator {
 
 
 	private ValidationStatus validateConformance(Resource resource) {
-		System.out.println("File loaded for validation.");
+		//System.out.println("File loaded for validation.");
 		ValidationStatus mainValidation = null;
 		List<ValidationStatus> list = new ArrayList<ValidationStatus>();
 		
