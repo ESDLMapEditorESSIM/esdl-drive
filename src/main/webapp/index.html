@@ -61,15 +61,15 @@ Manager:
 		</style>
 	</head>
 	<body>
-		<div style="width: 50%; height: 20px;margin: 5px;"><img src="icons/ESDLDrive-16.png" style="position: relative; top:2px"/><span>  </span><span style="font-weight: bold;">ESDL Drive</span></div>
+		<div id="topwrapper" style="width: 100%; overflow: hidden;">
+		<div style="width: 50%; height: 20px;margin: 5px; float: left;"><img src="icons/ESDLDrive-16.png" style="position: relative; top:2px"/><span>  </span><span style="font-weight: bold;">ESDL Drive</span></div>
 		
-		<!--		
-		<div style="width: 50%;">  
-		  <FORM METHOD="POST" ACTION="ibm_security_logout" NAME="logout">
-          <input type="submit" name="logout" value="Log Out" />
-          <input type="HIDDEN" name="logoutExitPage" value="/" />
-        </FORM></div>
-        -->
+				
+		<div style="margin: 5px; overflow:hidden;text-align: right">
+			<span><a href="/store/logout"><span>Logout</span></a><span>&nbsp;</span></span>  
+        </div>
+        </div>
+        
 		<div id="container" role="main">
 			<div id="tree"></div>
 			<div id="data">

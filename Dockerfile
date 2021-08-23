@@ -1,5 +1,5 @@
 # Start with OL runtime.
-FROM open-liberty
+FROM open-liberty:full-java11-openj9
 
 USER root
 # Symlink servers directory for easier mounts.

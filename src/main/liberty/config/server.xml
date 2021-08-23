@@ -37,7 +37,23 @@
 <!--     </featureManager> -->
 
 	<featureManager>
-		<feature>microProfile-3.3</feature>
+<!-- 		<feature>jakartaee-8.0</feature> -->
+<!--  werkt: -->
+<!-- 		<feature>servlet-4.0</feature> -->
+<!-- 		<feature>webProfile-8.0</feature> -->
+<!-- 		<feature>microProfile-4.0</feature> -->
+<!-- 		<feature>openIDConnectClient-1.0</feature> -->
+
+<!--  testen -->
+		<feature>appSecurity-3.0</feature>
+		<feature>cdi-2.0</feature>
+		<feature>jaxrs-2.1</feature>
+		<feature>jsp-2.3</feature> <!-- important as openIDConnectClient with otherwise throw an exception as it requires jsp-2.2 -->
+		<feature>mpConfig-2.0</feature>
+		<feature>mpHealth-3.0</feature>
+		<feature>mpJwt-1.2</feature>
+		<feature>mpMetrics-3.0</feature>
+		<feature>mpOpenAPI-2.0</feature>
 		<feature>openIDConnectClient-1.0</feature>
 	</featureManager>
 

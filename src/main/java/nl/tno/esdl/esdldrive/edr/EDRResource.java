@@ -149,7 +149,7 @@ public class EDRResource {
 	@Produces(MediaType.APPLICATION_XML)
 	@Operation(summary="Retrieve a file from the public Energy Data Repository")
 	@Parameters({
-		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/Public/ETM/ETM WindTurbine.esdl"),
+		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/Public/Assets/ETM/ETM WindTurbine.edd"),
 	})
 	public Response getPublicEDRESDL(@PathParam("resourceURL") String resourceURL) {
 		String path = URI.decode(resourceURL);
@@ -284,7 +284,7 @@ public class EDRResource {
 	@Path("/upload/{resourceURL:.+}")
 	@Operation(summary="Upload a new Energy Data Description to the EDR")
 	@Parameters({
-		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces) for upload", example = "/edr/Public/ETM/ETM WindTurbine.esdl"),
+		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces) for upload. Use .edd as file extension.", example = "/edr/Public/ETM/ETM WindTurbine.edd"),
 	})
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
