@@ -35,6 +35,7 @@ import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import javax.json.JsonStructure;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -121,6 +122,7 @@ public class BrowserController {
     	@Parameter(allowEmptyValue = false, name = "id", in = ParameterIn.QUERY, description = "The path or file to get information from", schema = @Schema(type = SchemaType.STRING), example= "/Projects"),
     	@Parameter(allowEmptyValue = true, name = "text", in = ParameterIn.QUERY, description = "In case of renaming (rename_node), its new name", schema = @Schema(type = SchemaType.STRING)),
     	@Parameter(allowEmptyValue = true, name = "type", in = ParameterIn.QUERY, description = "In case of creating new nodes (create_node), the type of node (e.g. folder)", schema = @Schema(type = SchemaType.STRING)),
+    	@Parameter(allowEmptyValue = true, name = "depth", in = ParameterIn.QUERY, description = "In case of listing folders (get_node), it will retrieve this amount of levels in the hierarchy. Default 1", schema = @Schema(type = SchemaType.STRING)),
     	@Parameter(allowEmptyValue = true, name = "parent", in = ParameterIn.QUERY, description = "In case of copying or moving files or folders (copy_node or move_node), the path of the parent folder where it needs to move/copy", schema = @Schema(type = SchemaType.STRING))
     })
     @APIResponses({
@@ -134,6 +136,7 @@ public class BrowserController {
     		@QueryParam("id") String id,
     		@QueryParam("text") String newName,
     		@QueryParam("type") String type,
+    		@QueryParam("depth") @DefaultValue("1") int depth,
     		@QueryParam("parent") String parent)  {
         IdToken token = PropagationHelper.getIdToken();
         UserInfo userInfo;
@@ -156,13 +159,15 @@ public class BrowserController {
         }
         
         JsonStructure jsonObject = null;
+        //System.out.println(securityContext.getUserPrincipal().getClass().getName());
+        log.info("\\-- Browse#" + operation + ": " + id + ", depth="+depth);
         switch(op) {
 		case get_node:
 			if (id.equals("#")) {
 				// ensure that all folders are present in the browser
 				cdoManager.ensureUserFoldersPresent(userInfo);
 				
-				JsonArray children = getFolderContents(userInfo, "/");
+				JsonArray children = getFolderContents(userInfo, "/", depth);
 				
 				JsonObject root = Json.createObjectBuilder().add("text", ROOT_FOLDER_NAME)
 						.add("children", children)
@@ -182,7 +187,7 @@ public class BrowserController {
 				jsonObject = arrayBuilder.build();
 				
 			} else {				
-				jsonObject = getFolderContents(userInfo, id);
+				jsonObject = getFolderContents(userInfo, id, depth);
 				
 			}
 			break;
@@ -382,9 +387,9 @@ public class BrowserController {
     	return Json.createObjectBuilder().add("error", reason).build();
     }
     
-    private JsonArray getFolderContents(UserInfo userInfo, String path) {
+    private JsonArray getFolderContents(UserInfo userInfo, String path, int depth) {
     	//log.info("Get folder contents of "+ path);
-    	List<BrowserNode> folderContents = cdoManager.getFolderContents(userInfo, path);
+    	List<BrowserNode> folderContents = cdoManager.getFolderContents(userInfo, path, depth);
     	JsonArrayBuilder arrayBuilder = buildFolderContents(folderContents);
     	    	
     	return arrayBuilder.build();
@@ -393,15 +398,20 @@ public class BrowserController {
 	public static JsonArrayBuilder buildFolderContents(List<BrowserNode> folderContents) {
 		JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
     	for (BrowserNode node : folderContents) {
-    		JsonObject nodeAsJson = Json.createObjectBuilder()
-    		.add("text", node.getName())
-			.add("children", node.hasSubNodes())
+    		JsonObjectBuilder nodeAsJsonBuilder = Json.createObjectBuilder()
+    		.add("text", node.getName())			
 			.add("id", node.getPath())
 			.add("icon", node.getType().getIconName())
 			.add("type", node.getType().getIconName())
-			.add("writable", node.isWritable())
-			.build();
-			arrayBuilder.add(nodeAsJson);
+			.add("writable", node.isWritable());
+			
+    		if (node.hasSubNodes() && node.getChildren() != null && node.getChildren().size() > 0) {
+    			nodeAsJsonBuilder.add("children", buildFolderContents(node.getChildren()));
+    		} else {
+    			nodeAsJsonBuilder.add("children", node.hasSubNodes());
+    		}
+    		
+			arrayBuilder.add(nodeAsJsonBuilder.build());
 		}
 		return arrayBuilder;
 	}

@@ -153,7 +153,9 @@ public class CDOServerResource {
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
-			e.printStackTrace();
+			if (!(e instanceof CDOResourceNodeNotFoundException) && !(e instanceof InvalidURIException)) { // ignore these errors
+				e.printStackTrace();
+			}
 			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
 		}
 	}

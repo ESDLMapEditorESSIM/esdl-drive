@@ -6,11 +6,11 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nl.tno.esdl</groupId>
 	<artifactId>esdl-drive</artifactId>
-	<version>21.06</version>
+	<version>21.09</version>
 	<packaging>war</packaging>
 	<properties>
 		<openliberty.maven.version>3.3.4</openliberty.maven.version>
-		<openliberty.version>21.0.0.6</openliberty.version>
+		<openliberty.version>21.0.0.7</openliberty.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<maven.compiler.target>1.8</maven.compiler.target>
@@ -19,8 +19,8 @@
 		<server.name>esdl-drive-server</server.name>
 		<failOnMissingWebXml>false</failOnMissingWebXml>
 
-		<esdldrive.version>21.06</esdldrive.version>
-		<esdl.version>2.21.6.cdo</esdl.version>
+		<esdldrive.version>${project.version}</esdldrive.version>
+		<esdl.version>2.21.9.cdo</esdl.version>
 		<edd.version>1.2.0</edd.version>
 
 		<maven.compiler.source>11</maven.compiler.source>

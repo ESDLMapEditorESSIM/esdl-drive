@@ -86,7 +86,7 @@ public class EDRResource {
     			schema = @Schema(enumeration = {"get_node", "move_node", "copy_node", "delete_node", "create_node", "rename_node", "get_content", "get_revisions"}, 
     			description = "Operation:\n * `get_node` - Gets a listing of a folder \n * `get_content` - Get a content description of a file"), 
     			example = "get_node"),
-    	@Parameter(allowEmptyValue = false, name = "id", in = ParameterIn.QUERY, description = "The path or file to get information from", schema = @Schema(type = SchemaType.STRING), example= "/Public"),
+    	@Parameter(allowEmptyValue = false, name = "id", in = ParameterIn.QUERY, description = "The path or file to get information from", schema = @Schema(type = SchemaType.STRING), example= "/edr/Public"),
     	@Parameter(allowEmptyValue = true, name = "text", in = ParameterIn.QUERY, description = "In case of renaming (rename_node), its new name", schema = @Schema(type = SchemaType.STRING)),
     	@Parameter(allowEmptyValue = true, name = "type", in = ParameterIn.QUERY, description = "In case of creating new nodes (create_node), the type of node (e.g. folder)", schema = @Schema(type = SchemaType.STRING)),
     	@Parameter(allowEmptyValue = true, name = "parent", in = ParameterIn.QUERY, description = "In case of copying or moving files or folders (copy_node or move_node), the path of the parent folder where it needs to move/copy", schema = @Schema(type = SchemaType.STRING))
@@ -99,6 +99,7 @@ public class EDRResource {
 	 public Response browsePublicEDR( 
     		@Context SecurityContext securityContext, 
     		@QueryParam("operation") @DefaultValue("none") BrowseOperation operation,
+    		@QueryParam("depth") @DefaultValue("1") int depth,
     		@QueryParam("id") String id) {
 		
 		
@@ -115,7 +116,7 @@ public class EDRResource {
 		switch(operation) {
 			case get_node:
 				try {
-					List<BrowserNode> folderContents = cdoManager.getFolderContents(userInfo, path);
+					List<BrowserNode> folderContents = cdoManager.getFolderContents(userInfo, path, depth);
 					JsonArrayBuilder arrayBuilder = BrowserController.buildFolderContents(folderContents);
 					return Response.ok(arrayBuilder.build()).build();
 				} catch (CDOResourceNodeNotFoundException e) {

@@ -55,6 +55,7 @@ import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOBinaryResource;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
+import org.eclipse.emf.cdo.eresource.CDOResourceLeaf;
 import org.eclipse.emf.cdo.eresource.CDOResourceNode;
 import org.eclipse.emf.cdo.eresource.CDOTextResource;
 import org.eclipse.emf.cdo.net4j.CDONet4jSession;
@@ -405,7 +406,7 @@ public class CDOManager {
 				CDOView revisionView = session.openView(revision);
 				if (revisionView.hasResource(resourceName)) {
 					// file and path still exist in previous version
-					resource = view.getResource(resourceName);
+					resource = revisionView.getResource(resourceName);
 				} else {
 					// file has been renamed or moved, get object by ID
 					CDOResource currentResource = view.getResource(resourceName);
@@ -435,7 +436,7 @@ public class CDOManager {
 
 			return resourceResult;
 		} catch (Exception e) {
-			e.printStackTrace();
+			//e.printStackTrace();
 			throw e;
 		}
 
@@ -720,8 +721,13 @@ public class CDOManager {
 		}
 	}
 
-
+	
 	public List<BrowserNode> getFolderContents(UserInfo userInfo, String path) {
+		return getFolderContents(userInfo, path, 1);		
+	}
+
+	public List<BrowserNode> getFolderContents(UserInfo userInfo, String path, int depth) {
+		depth = Math.max(0, Math.min(depth, 5)); // max 5 levels deep
 		CDONet4jSession session = getSession(userInfo);
 
 		CDOTransaction transaction = session.openTransaction();
@@ -748,6 +754,11 @@ public class CDOManager {
 					browserNode.setType(BrowserNodeType.FOLDER);
 					if (cdoResourceFolder.getNodes().size() > 0) {
 						browserNode.setHasSubNodes(true);
+						// recurse if necessary
+						if (depth > 1) {
+							List<BrowserNode> subFolderContents = getFolderContents(userInfo, node.getPath(), depth - 1);
+							browserNode.setChildren(subFolderContents);
+						}
 					}
 				} else if (node instanceof CDOBinaryResource) {
 					browserNode.setType(BrowserNodeType.BINARY);
@@ -894,11 +905,46 @@ public class CDOManager {
 		CDOTransaction transaction = session.openTransaction();
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
-			transaction.setCommitComment("Renamed " + resourceNode.getName() + " to " + newName);
-			resourceNode.setName(newName);
-			String pathName = resourceNode.getPath();
-			transaction.commit();
-			return pathName;
+			transaction.setCommitComment("Renaming " + resourceNode.getName() + " to " + newName);
+			String oldPath = resourceNode.getPath();
+
+			// update cache (somewhat complex unfortunately when renaming folders)
+			if (resourceNode instanceof CDOResourceLeaf) {
+				CachedModel cachedModel = getCache().get(oldPath);
+				resourceNode.setName(newName);
+				transaction.commit();
+				String newPathName = resourceNode.getPath();
+				cachedModel.setPath(newPathName);
+				getCache().remove(oldPath);
+				getCache().put(newPathName, cachedModel);
+			} else {
+				// for folders: invalidate cache for the files that this folder contains
+				HashMap<CDOResource, CachedModel> renamedResources = new HashMap<>();
+				Iterator<Entry<String, CachedModel>> iterator = getCache().entrySet().iterator();
+				while (iterator.hasNext()) {
+					Entry<String, CachedModel> entry = iterator.next();
+					if (entry.getKey().startsWith(oldPath + "/")) { // make sure it ends with a / otherwise also /folder_bla matches /folder
+						CachedModel cachedModel = entry.getValue();
+						CDOResource resourceNeedsUpdate = transaction.getResource(cachedModel.getPath());
+						renamedResources.put(resourceNeedsUpdate, cachedModel);
+						iterator.remove();
+					}
+				}
+				log.info("Rename requires " + renamedResources.size() + " cache updates");
+				resourceNode.setName(newName);
+				transaction.commit();
+				//String newPathName = resourceNode.getPath();
+				for (Entry<CDOResource, CachedModel> renamedResource : renamedResources.entrySet()) {
+					CDOResource cdoResource = renamedResource.getKey();
+					CachedModel cachedModel = renamedResource.getValue();
+					String newResourcePath = cdoResource.getPath(); // get new resource path 
+					cachedModel.setPath(newResourcePath);
+					getCache().put(newResourcePath, cachedModel);
+					log.info("Rename: updating cache for " + newResourcePath);
+				}
+			}
+			
+			return resourceNode.getPath();
 		} catch (CDOResourceNodeNotFoundException e) {
 			throw e;
 		}
@@ -913,9 +959,20 @@ public class CDOManager {
 		CDOTransaction transaction = session.openTransaction();
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
-			transaction.setCommitComment("Deleted " + resourceNode.getName());
+			transaction.setCommitComment("Deleting: " + resourceNode.getName());
 			resourceNode.delete(null);
-			getCache().remove(path);
+			if (resourceNode instanceof CDOResourceLeaf) {
+				getCache().remove(path);
+			} else {
+				Iterator<Entry<String, CachedModel>> iterator = getCache().entrySet().iterator();
+				while (iterator.hasNext()) {
+					Entry<String, CachedModel> entry = iterator.next();
+					if (entry.getKey().startsWith(path + "/")) { // make sure it ends with a / otherwise also /folder_bla matches /folder
+						iterator.remove();
+						log.info("Delete: Invalidating cache for " + entry.getKey());
+					}
+				}
+			}
 			transaction.commit();
 		} catch (CDOResourceNodeNotFoundException e) {
 			throw e;
@@ -944,11 +1001,24 @@ public class CDOManager {
 			transaction.commit();
 			String newPath =  resourceNode.getPath();
 			// update cache
-			CachedModel cachedModel = getCache().get(path);
-			if (cachedModel != null) {
-				getCache().remove(path);
-				cachedModel.setPath(newPath);
-				getCache().put(path, cachedModel);
+			if (resourceNode instanceof CDOResourceLeaf) {
+				CachedModel cachedModel = getCache().get(path);
+				if (cachedModel != null) {
+					getCache().remove(path);
+					cachedModel.setPath(newPath);
+					getCache().put(path, cachedModel);
+				}
+			} else {
+				Iterator<Entry<String, CachedModel>> iterator = getCache().entrySet().iterator();
+				while (iterator.hasNext()) {
+					Entry<String, CachedModel> entry = iterator.next();
+					if (entry.getKey().startsWith(path + "/")) { // make sure it ends with a / otherwise also /folder_bla matches /folder
+						CachedModel cachedModel = entry.getValue();
+						iterator.remove();
+						log.info("Move node: Invalidate cache for: " + cachedModel.getPath());
+					}
+				}
+				// TODO: update path of cache instead of just removing it
 			}
 			return newPath;
 		} catch (CDOResourceNodeNotFoundException e) {
