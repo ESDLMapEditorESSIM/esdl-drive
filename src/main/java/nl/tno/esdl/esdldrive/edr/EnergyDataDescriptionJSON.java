@@ -3,6 +3,7 @@ package nl.tno.esdl.esdldrive.edr;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -153,8 +154,12 @@ public class EnergyDataDescriptionJSON {
 			}
 		}
 		if (addImageData && edd.getImage() != null && edd.getImage().getImageData() != null) {
-			ImageJSON imageJSON = new ImageJSON(edd.getImage().getContentType(), new String(edd.getImage().getImageData()));
-			json.setImage(imageJSON);
+			try {
+				ImageJSON imageJSON = new ImageJSON(edd.getImage().getContentType(), new String(edd.getImage().getImageData(), "UTF-8"));
+				json.setImage(imageJSON);
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
 		}
 		
 		if (edd.cdoDirectResource() != null) {
