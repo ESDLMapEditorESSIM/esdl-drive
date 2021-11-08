@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -84,9 +85,13 @@ import org.eclipse.emf.compare.merge.IMerger;
 import org.eclipse.emf.compare.merge.IMerger.Registry;
 import org.eclipse.emf.compare.scope.DefaultComparisonScope;
 import org.eclipse.emf.ecore.EAttribute;
+import org.eclipse.emf.ecore.EClass;
+import org.eclipse.emf.ecore.EClassifier;
+import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EStructuralFeature;
+import org.eclipse.emf.ecore.impl.EDataTypeImpl;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMLResource;
@@ -99,6 +104,7 @@ import org.eclipse.microprofile.metrics.annotation.Gauge;
 import org.eclipse.net4j.Net4jUtil;
 import org.eclipse.net4j.connector.IConnector;
 import org.eclipse.net4j.tcp.TCPUtil;
+import org.eclipse.net4j.util.WrappedException;
 import org.eclipse.net4j.util.container.ContainerUtil;
 import org.eclipse.net4j.util.container.IManagedContainer;
 import org.eclipse.net4j.util.event.IEvent;
@@ -128,6 +134,7 @@ import nl.tno.esdl.esdldrive.cdo.cache.LRUCache;
 import nl.tno.esdl.esdldrive.cdo.exceptions.MergeConfictException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 import nl.tno.esdl.esdldrive.edr.SearchESDLType;
+import nl.tno.esdl.esdldrive.edr.SortOrder;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
 
@@ -516,6 +523,19 @@ public class CDOManager {
 		return hasResource;
 	}
 	
+	public CDOResourceNode getResourceNode(UserInfo userInfo, String resourceURL) throws PermissionDeniedException {
+		if (AccessController.canAccess(resourceURL, userInfo)) {
+			CDONet4jSession session = getSession(userInfo);
+			CDOView view = session.openView();
+			CDOResourceNode resourceNode = view.getResourceNode(resourceURL);
+			// check if it is a file or a folder or something else
+			return resourceNode;
+		} else {
+			throw new PermissionDeniedException("Cannot access " + resourceURL);
+		}
+		
+	}
+	
 	public ResourceResult getPublicResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
 		if (resourceURL.startsWith(AccessController.PUBLIC_FOLDER) || resourceURL.startsWith(AccessController.EDR_PUBLIC_FOLDER_PATH )) {
 			try {
@@ -610,6 +630,7 @@ public class CDOManager {
 			Net4jUtil.prepareContainer(container); // Register Net4j factories
 			TCPUtil.prepareContainer(container); // Register TCP factories
 			CDONet4jUtil.prepareContainer(container); // Register CDO factories
+			//OCLQueryHandler.prepareContainer(container); // register OCL query factories
 			//CDONet4jServerUtil.prepareContainer(container);
 			container.activate();
 			//LifecycleUtil.activate(container);
@@ -1222,9 +1243,143 @@ public class CDOManager {
 		
 	}
 	
+	public List<EnergyDataDescription> oclQueryEDD(UserInfo userInfo, final HashMap<String, String> filter) {
+		CDONet4jSession session = getSession(userInfo);
+		CDOView view = session.openView();
+		
+		ArrayList<String> oclFilter = new ArrayList<String>();
+		String orderOCL = "";
+		SortOrder sortOrder = SortOrder.DEFAULT;
+		int limit = 0;
+		int offset = 0;
+		
+		//runQuery(view, "EnergyDataDescription.allInstances()->select(edd:EnergyDataDescription|edd.esdl.oclIsTypeOf(esdl::Pipe))
+		//                ->select(edd|edd.esdl.oclAsType(esdl::Pipe).diameter=esdl::PipeDiameterEnum::VALUE_SPECIFIED)");
+		String esdlTypeWithPrefix = "";
+		String rawType = "";
+		String attributeName = null; //diameter";
+		String attributeValue = null; //esdl::PipeDiameterEnum::VALUE_SPECIFIED";
+		
+		
+		
+		for (Map.Entry<String, String> entry: filter.entrySet()) {
+			switch (entry.getKey()) {
+			case "tags":
+				// toLowerCase -> makes search case insensitive
+				oclFilter.add("e.tags.toLowerCase()->includes('" + entry.getValue().toLowerCase() + "')");
+				break;
+			case "limit":
+				limit = Integer.parseInt(entry.getValue());
+				break;
+			case "offset":
+				offset = Integer.parseInt(entry.getValue());
+				break;
+			case "order":
+				orderOCL = "->sortedBy(e|e.title)";
+				sortOrder = SortOrder.valueOf(entry.getValue());
+				break;
+			case "esdlType":
+				rawType = entry.getValue();
+				EClassifier eClassifier = EsdlPackage.eINSTANCE.getEClassifier(rawType);
+				if (eClassifier != null) {				
+					// check if this is a valid ESDL type
+					String nsPrefix = eClassifier.getEPackage().getNsPrefix();
+					oclFilter.add("e.esdl.oclIsKindOf("+nsPrefix+"::"+eClassifier.getName()+")");
+					esdlTypeWithPrefix = nsPrefix+"::"+eClassifier.getName();
+				} else {
+					throw new IllegalArgumentException("Not a known ESDL class: " + rawType);
+				}
+				break;
+			case "attributeName":
+				// query for a specific attribute in the esdl, combined with attributeValue
+				attributeName = entry.getValue();
+				break;
+			case "attributeValue":
+				attributeValue = entry.getValue().strip();
+				if (attributeValue.contains(" and ")) {
+					attributeValue = attributeValue.split(" and ")[0]; // get only the first part for security reasons  
+				}
+				if (attributeValue.contains(" or ")) {
+					attributeValue = attributeValue.split(" or ")[0]; // get only the first part for security reasons  
+				}
+				break;
+			default:
+				//edd.title.matches('.*Ewoud.*')
+				//eddFilter.add(entry.getKey() + " LIKE '%" + entry.getValue() + "%'");
+				// (?i) means case insensitive
+				oclFilter.add("e." + entry.getKey() + ".matches('(?i).*" + entry.getValue() + ".*')");
+				break;
+			}
+		}
+
+		if (!esdlTypeWithPrefix.isEmpty()) {
+			if (attributeName != null && attributeValue != null) {
+		
+				// query specific attribute of esdlType
+				//->select(edd|edd.esdl.oclAsType(esdl::Pipe).diameter=esdl::PipeDiameterEnum::VALUE_SPECIFIED)
+				EClassifier eClassifier = EsdlPackage.eINSTANCE.getEClassifier(rawType);
+				if (eClassifier != null && eClassifier instanceof EClass) {	
+					EClass eClass = (EClass)eClassifier;
+					EStructuralFeature feature = eClass.getEStructuralFeature(attributeName);
+					if (feature != null) {
+						if ("EString".equals(feature.getEType().getName())) { // EStrings need to be quoted and matched
+							System.out.println("type=" + feature.getEType());
+							oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ ".matches('(?i).*" + attributeValue + ".*')");
+						} else {
+							// TODO: add case for multi valued attributes
+							oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ "=" + attributeValue);
+						}
+					}
+				}
+			} else {
+				throw new IllegalArgumentException("Missing arguments when querying attributeName or attributeValue; esdlType, attributeName and attributeValue should be specified.");
+			}
+		} else {
+			if (attributeName != null || attributeValue != null) {
+				throw new IllegalArgumentException("Missing arguments when querying attributeName or attributeValue; esdlType, attributeName and attributeValue should be specified.");
+			}
+		}
+		
+		String oclFilterString = "";
+		if (oclFilter.size() > 0) {
+			oclFilterString = "->select(e:EnergyDataDescription| " + oclFilter.stream().collect(Collectors.joining(" and ")) + ")";   
+		}
+		
+		String oclQueryString = "edd::EnergyDataDescription.allInstances()" + oclFilterString + orderOCL;
+		
+		
+		try {
+			CDOQuery oclQuery = view.createQuery("ocl", oclQueryString, EddPackage.Literals.ENERGY_DATA_DESCRIPTION);
+			log.info("EDR OCL query: " + oclQueryString + ", sort="+sortOrder.name());
+			List<EnergyDataDescription> result2 = oclQuery.getResult(EnergyDataDescription.class);
+			
+			if (sortOrder == SortOrder.DESC) {
+				// put elements in new list, as EList does not support the set(i,j,e) operation
+				result2 = new ArrayList<EnergyDataDescription>(result2);
+				Collections.reverse(result2);
+			}
+	
+			// filter results based on accessibility
+			List<EnergyDataDescription> accessibleEDD = result2.stream().filter(edd -> AccessController.canAccess(edd.cdoDirectResource().getPath(), userInfo)).collect(Collectors.toList());
+			
+			limit = offset + limit;
+			if (limit <= 0) limit = accessibleEDD.size(); // no limit
+			limit = Math.min(accessibleEDD.size(), limit); // limit > result size
+			log.info("EDR OCL Query total="+result2.size()+", accessible="+accessibleEDD.size()+", limit=("+offset + ","+ limit+")");
+			List<EnergyDataDescription> subList = accessibleEDD.subList(offset, limit);
+	
+			return subList;
+		} catch (WrappedException e) {
+			log.severe("Error in OCL query: " + oclQueryString + ", e=" + e.getMessage());
+			throw new IllegalArgumentException("Error in OCL query: " + WrappedException.unwrap(e).getMessage());
+		}
+	}
+		
+		
 	public List<EnergyDataDescription> queryEDD(UserInfo userInfo, final HashMap<String, String> filter) {
 		CDONet4jSession session = getSession(userInfo);
 		CDOView view = session.openView();
+		
 		//CDOResourceFolder edrFolder = view.getResourceFolder("/"+EDRResource.EDR_FOLDER_NAME);
 		String eddTableName = "edd_EnergyDataDescription";
 		String tagsTableName = "edd_energydatadescription_tags_list";

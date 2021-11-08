@@ -152,8 +152,8 @@ public class CDOServerResource {
 			Date lastModified = resourceResult.getLastModified();
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
-			log.severe("Error: " + e);
 			if (!(e instanceof CDOResourceNodeNotFoundException) && !(e instanceof InvalidURIException)) { // ignore these errors
+				log.severe("Error: " + e);
 				e.printStackTrace();
 			}
 			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();

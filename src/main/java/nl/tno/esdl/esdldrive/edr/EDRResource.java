@@ -150,7 +150,7 @@ public class EDRResource {
 	@Produces(MediaType.APPLICATION_XML)
 	@Operation(summary="Retrieve a file from the public Energy Data Repository")
 	@Parameters({
-		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/Public/Assets/ETM/ETM WindTurbine.edd"),
+		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/edr/Public/Assets/ETM/ETM WindTurbine.edd"),
 	})
 	public Response getPublicEDRESDL(@PathParam("resourceURL") String resourceURL) {
 		String path = URI.decode(resourceURL);
@@ -221,9 +221,11 @@ public class EDRResource {
 		@Parameter(name = "maxResults", in = ParameterIn.QUERY, description = "Amount of results to return, default 25, a value of -1 removes this limit", schema = @Schema(defaultValue = "25", minimum = "-1", implementation = int.class)),
 		@Parameter(name = "offset", in = ParameterIn.QUERY, description = "If more than 25 results, use offset to start at the 26th result for the next 25 results", schema = @Schema(minimum = "0", implementation = int.class)),
 		@Parameter(name = "order", in = ParameterIn.QUERY, description = "Sort order, defaults to the order the descriptions are saved, ASC means ascending order on Title of the description", schema = @Schema(defaultValue = "DEFAULT", implementation = SortOrder.class)),
+		@Parameter(name = "attributeName", in = ParameterIn.QUERY, description = "Filter based on a specific attribute name and value of the esdlType object in the Energy Data Description. Requires esdlType and attributeValue to be set too."),
+		@Parameter(name = "attributeValue", in = ParameterIn.QUERY, description = "Filter based on a specific attributeName's value of the esdlType object in the Energy Data Description. Requires esdlType and attributeName to be set too. E.g. esdlType = Pipe, attributeName=diameter and attributeValue=esdl::PipeDiameterEnum::DN100"),
 	})
 	@APIResponses({
-		@APIResponse(description = "Returns zero or more EnergyDataDescriptions", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = EnergyDataDescriptionJSON.class)))
+		@APIResponse(description = "Returns zero or more EnergyDataDescriptions in an array", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = EnergyDataDescriptionJSON.class)))
 	})
 	
 	@Produces(MediaType.APPLICATION_JSON)
@@ -236,13 +238,20 @@ public class EDRResource {
 			@QueryParam("addESDL") @DefaultValue("false") final Boolean addESDL,
 			@QueryParam("maxResults") @DefaultValue("25") int maxResults, 
 			@QueryParam("offset") @DefaultValue("0") int offset,
-			@QueryParam("order") @DefaultValue("DEFAULT") SortOrder order) {
+			@QueryParam("order") @DefaultValue("DEFAULT") SortOrder order,
+			@QueryParam("attributeName") String attributeName,
+			@QueryParam("attributeValue") String attributeValue) {
 		PublicUserInfo userInfo = new PublicUserInfo();
 		
 		if (path != null && !path.isEmpty()) {
 			path = URI.decode(path);
 			if (!path.startsWith("/")) path = "/" + path;
 			try {
+				// TODO add ability to filter on path (add path to filter Map)
+				//CDOResourceNode resourceNode = cdoManager.getResourceNode(userInfo, path);
+				//if (resourceNode instanceof CDOResourceFolder) {
+				//	// filter on folder
+				//}
 				ResourceResult publicResource = cdoManager.getPublicResource(userInfo, path);
 				CDOResource cdoResource = publicResource.getCDOResource();
 				EObject eObject = cdoResource.getContents().get(0);
@@ -264,17 +273,22 @@ public class EDRResource {
 			HashMap<String, String> filter = new HashMap<>();
 			if (title != null && !title.isEmpty()) filter.put("title", title);
 			if (tag != null && !tag.isEmpty()) filter.put("tags", tag);
+			if (attributeName != null && !attributeName.isEmpty()) filter.put("attributeName", attributeName);
+			if (attributeValue != null && !attributeValue.isEmpty()) filter.put("attributeValue", attributeValue);
 			if (maxResults >= 0) filter.put("limit", String.valueOf(maxResults));
 			if (offset > 0) filter.put("offset", String.valueOf(offset));
 			if (order != null && order != SortOrder.DEFAULT) filter.put("order", order.name());
 			if (esdlType != null && !esdlType.isEmpty()) filter.put("esdlType", esdlType);
-			System.out.println("filter: " + filter);
-			List<EnergyDataDescription> queryEDD = cdoManager.queryEDD(userInfo, filter);
-			System.out.println(queryEDD);
-			List<EnergyDataDescriptionJSON> result = queryEDD.stream().map(edd -> EnergyDataDescriptionJSON.fromEDD(edd, addImageData, addESDL)).collect(Collectors.toList());
-			
-		
-			return Response.ok(result).build();
+			//System.out.println("filter: " + filter);
+			//List<EnergyDataDescription> queryEDD = cdoManager.queryEDD(userInfo, filter);
+			try {
+				List<EnergyDataDescription> queryEDD = cdoManager.oclQueryEDD(userInfo, filter);
+				//System.out.println(queryEDD);
+				List<EnergyDataDescriptionJSON> result = queryEDD.stream().map(edd -> EnergyDataDescriptionJSON.fromEDD(edd, addImageData, addESDL)).collect(Collectors.toList());
+				return Response.ok(result).build();
+			} catch (Exception e) {
+				return Response.serverError().entity("Error querying database: " + e.getMessage()).build();
+			}
 		}
 	}
 	

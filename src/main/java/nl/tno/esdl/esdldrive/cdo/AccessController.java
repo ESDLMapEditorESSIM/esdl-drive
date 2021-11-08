@@ -80,7 +80,13 @@ public class AccessController {
 	}
 	
 	
-	
+	/**
+	 * Checks if the user represented by UserInfo has access to the folder represented by path.
+	 * UserInfo.getGroups() is used to find out which groups a user can access
+	 * @param path
+	 * @param userInfo
+	 * @return True if the user has access, False otherwise
+	 */
 	public static boolean canAccess(String path, UserInfo userInfo) {
 		// path = /Users/ewoud.werkman@tno.nl/Vesta resultaten/vesta_output_warmtekeuze_per_buurt.esdl
 		// path = /Projects/Mondaine/Gooi en Vechtstreek/Test_energy_system.esdl
@@ -88,7 +94,7 @@ public class AccessController {
 		List<String> accessGroups = userInfo.getGroups();
 		
 		for (String group: accessGroups) {
-			System.out.println("Checking " + path + " against " + group);
+			//System.out.println("Checking " + path + " against " + group);
 			if (path.startsWith(group) || group.startsWith(path)) {
 				return true;
 			}
