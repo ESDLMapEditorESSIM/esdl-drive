@@ -87,11 +87,9 @@ import org.eclipse.emf.compare.scope.DefaultComparisonScope;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EClassifier;
-import org.eclipse.emf.ecore.EDataType;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EPackage;
 import org.eclipse.emf.ecore.EStructuralFeature;
-import org.eclipse.emf.ecore.impl.EDataTypeImpl;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.xmi.XMLResource;
@@ -1313,7 +1311,9 @@ public class CDOManager {
 		}
 
 		if (!esdlTypeWithPrefix.isEmpty()) {
-			if (attributeName != null && attributeValue != null) {
+			if (attributeName == null ^ attributeValue == null) {
+				throw new IllegalArgumentException("Missing arguments when querying attributeName or attributeValue; esdlType, attributeName and attributeValue should be specified.");
+			} else {
 		
 				// query specific attribute of esdlType
 				//->select(edd|edd.esdl.oclAsType(esdl::Pipe).diameter=esdl::PipeDiameterEnum::VALUE_SPECIFIED)
@@ -1331,13 +1331,7 @@ public class CDOManager {
 						}
 					}
 				}
-			} else {
-				throw new IllegalArgumentException("Missing arguments when querying attributeName or attributeValue; esdlType, attributeName and attributeValue should be specified.");
-			}
-		} else {
-			if (attributeName != null || attributeValue != null) {
-				throw new IllegalArgumentException("Missing arguments when querying attributeName or attributeValue; esdlType, attributeName and attributeValue should be specified.");
-			}
+			} 
 		}
 		
 		String oclFilterString = "";
