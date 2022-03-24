@@ -1,1 +1,1 @@
-mvn liberty:dev -DserverStartTimeout=60
+mvn liberty:dev -DserverStartTimeout=160

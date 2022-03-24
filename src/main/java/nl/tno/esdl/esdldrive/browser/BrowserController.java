@@ -51,6 +51,7 @@ import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CommitException;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -88,6 +89,14 @@ public class BrowserController {
 	private static final String ROOT_FOLDER_NAME = "ESDL Drive";
 
 	private static Logger log = Logger.getLogger(BrowserController.class.getName());
+	
+	@Inject
+	@ConfigProperty(name = "EDR_ENABLED", defaultValue = "true")
+	private boolean EDR_ENABLED;
+	
+//	private final static boolean EDR_ENABLED = ConfigProvider
+//			.getConfig().getOptionalValue("EDR_ENABLED", Boolean.class)
+//			.orElse(true);
 
 	@Inject
 	CDOManager cdoManager;
@@ -175,15 +184,20 @@ public class BrowserController {
 						.add("icon", BrowserNodeType.ESDLDRIVE.getIconName())
 						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();
-				JsonObject edr = Json.createObjectBuilder().add("text", "Energy Data Repository")
+				JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
+				arrayBuilder.add(root);
+				
+				if (EDR_ENABLED) { // only add EDR in browser when enabled (default)
+					JsonObject edr = null;
+					edr = Json.createObjectBuilder().add("text", "Energy Data Repository")
 						.add("children", true)
 						.add("id", "/" + AccessController.EDR_FOLDER_NAME)
 						.add("icon", BrowserNodeType.EDR.getIconName())
 						.add("type", BrowserNodeType.FOLDER.getIconName())
 						.build();
-				JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
-				arrayBuilder.add(root);
-				arrayBuilder.add(edr);
+					arrayBuilder.add(edr);
+				}
+			
 				jsonObject = arrayBuilder.build();
 				
 			} else {				

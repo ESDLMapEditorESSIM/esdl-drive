@@ -35,6 +35,12 @@ Some settings can be changed by using Environmental variables using the followin
 #### Repository name at the CDO server
 `CDO_REPOSITORY_NAME=esdldrive`
 
+#### Disable showing EDR in browser
+Defaults to:
+`EDR_ENABLED=true`
+
+Set EDR_ENABLED=0 to disable showing the EDR icon in the browser (both in MapEditor ESDL Browser as in this browser page
+
 #### KEYCLOAK realm
 `KEYCLOAK_REALM` defaults to `http://keycloak:8080/auth/realms/esdl-mapeditor`
 #### KEYCLOAK external accessible URL
