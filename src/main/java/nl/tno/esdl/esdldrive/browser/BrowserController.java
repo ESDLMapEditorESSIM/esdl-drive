@@ -150,7 +150,7 @@ public class BrowserController {
         IdToken token = PropagationHelper.getIdToken();
         UserInfo userInfo;
 		try {
-			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+			userInfo = AccessController.userInfoFromToken(token);
 		} catch (InvalidLoginInformationException e) {
 			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}        //System.out.println("Token: " + token);
@@ -200,8 +200,12 @@ public class BrowserController {
 			
 				jsonObject = arrayBuilder.build();
 				
-			} else {				
-				jsonObject = getFolderContents(userInfo, id, depth);
+			} else {
+				try {
+					jsonObject = getFolderContents(userInfo, id, depth);
+				} catch (CDOResourceNodeNotFoundException e) {
+					return Response.serverError().status(Status.NOT_FOUND).entity(generateError("File not found")).build();
+				}
 				
 			}
 			break;
@@ -215,6 +219,8 @@ public class BrowserController {
 				jsonObject = contentBuilder.build();
 			} catch (PermissionDeniedException e) {
 				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
+			} catch (CDOResourceNodeNotFoundException e) {
+				return Response.serverError().status(Status.NOT_FOUND).entity(generateError("File not found")).build();
 			}
 			break;
 		case create_node:
@@ -418,6 +424,10 @@ public class BrowserController {
 			.add("icon", node.getType().getIconName())
 			.add("type", node.getType().getIconName())
 			.add("writable", node.isWritable());
+    		
+    		if (node.getType() == BrowserNodeType.FOLDER) {
+    			nodeAsJsonBuilder.add("deletable", node.isDeletable());
+    		}
 			
     		if (node.hasSubNodes() && node.getChildren() != null && node.getChildren().size() > 0) {
     			nodeAsJsonBuilder.add("children", buildFolderContents(node.getChildren()));

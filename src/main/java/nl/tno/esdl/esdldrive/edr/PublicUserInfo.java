@@ -1,7 +1,6 @@
 package nl.tno.esdl.esdldrive.edr;
 
 
-import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 
 /**
@@ -14,7 +13,6 @@ public class PublicUserInfo extends UserInfo {
 
 	public PublicUserInfo() {
 		super(); // initializes the public user
-		this.getGroups().add(AccessController.EDR_PUBLIC_FOLDER_PATH);
 	}
 	
 	@Override

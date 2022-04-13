@@ -47,6 +47,7 @@ public class BrowserNode {
 	private List<BrowserNode> children = new ArrayList<>();
 	private boolean hasSubNodes = false;
 	private boolean writable;
+	private boolean deletable = true;
 
 	public BrowserNode(String name, String path) {
 		this.name = name;
@@ -99,5 +100,13 @@ public class BrowserNode {
 
 	public boolean isWritable() {
 		return writable;
+	}
+	
+	public void setDeletable(boolean deletable) {
+		this.deletable = deletable;
+	}
+	
+	public boolean isDeletable() {
+		return deletable;
 	}
 }

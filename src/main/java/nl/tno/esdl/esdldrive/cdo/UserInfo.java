@@ -16,9 +16,12 @@
 
 package nl.tno.esdl.esdldrive.cdo;
 
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.ibm.websphere.security.openidconnect.token.IdToken;
 
@@ -37,7 +40,7 @@ public class UserInfo {
 	
 	
 	/**
-	 * Associated Json token:
+	 * Associated Json token:<br/>
 	 *  
 	 *	 "resource_access": {
 	 *	    "cdo-mondaine": {
@@ -52,19 +55,59 @@ public class UserInfo {
 	private static final String RESOURCE_ACCESS_CLAIM = "resource_access";
 	private static final String CLIENT_ID = "cdo-mondaine";
 	private static final String RESOURCE_ACCESS_ROLES_SUB_CLAIM = "roles";
-	private static final String ESDL_DRIVE_ROLES_ADMIN = "esdl-drive-admin";
-	private static final String ESDL_DRIVE_EDR_PUBLIC_WRITE = "edr-public-write";
+	private static final String ESDL_DRIVE_ADMIN_ROLE = "esdl-drive-admin";
+	private static final String ESDL_DRIVE_EDR_PUBLIC_WRITE_ROLE = "edr-public-write";
+	
+	/**
+	 * List of folders that are always read-only<br/>
+	 *   "esdl-drive-read-only": [
+     *		"/Projects/Shared Models"
+  	 *	 ]
+	 */
+	private static final String ESDL_DRIVE_READ_ONLY_CLAIM = "esdl-drive-read-only";
+	
+	/**
+	 * List of folders that are writable for this user.<br/>
+	 * "esdl-drive-write": [
+     * 		"/Projects/development",
+     *  	"/Projects/Shared Models"
+  	 * ]
+	 */
+	private static final String ESDL_DRIVE_WRITE_CLAIM = "esdl-drive-write";
 	
 	
 	private final String userId;
 	private final String userName;
 	private final String fullName;
-	private final List<String> groups = new ArrayList<String>();
+	private final Set<String> keyCloackGroups;
+	private final Set<String> writable_paths = new HashSet<String>();
+	private final Set<String> read_only_paths = new HashSet<String>();
 	private final boolean admin;
-	private final boolean edrWrite;
+	private final boolean edrPublicWrite;
 	private final boolean publicUser;
 	
-	
+	/**
+	 * 
+	 * Access to folders is based on data in the JWT token. <br/>
+	 * Basic rule: Group membership means R+W access to that folder. Group membership is stored in the 'group_path' claim.<br/>
+	 * 1. If the user is added to a group in Keycloak, it has automatically write access to that group. 
+	 * 	  ESDL Drive makes sure these folders exists when setting up a session to the Drive.<br/>
+	 * 2. Groups in Keycloak can have the attribute of 'esdl-drive-read-only' with the value of the full path of that group (e.g. /Projects/Shared_read_only_folder).
+	 * 	  If a user is member of this group, it's write-access is revoked. This way it is possible to create read-only folders in Keycloak (albeit a bit hacky, ACLs would be nicer)<br/>
+	 * 3. A user can have additional write access to a folder (e.g. for disabling the 'esdl-drive-read-only' claim) by setting the user attribute 'esdl-drive-write'.
+	 *    This gives the user direct write access to that folder (even without being a group member!) and makes it possible to give
+	 *    some users write access to a folder and others not.<br/>
+	 *    
+	 * 	  To add multiple folders to a users' "esdl-drive-write" attribute separate the folder paths by '##' (keycloak's way of doing this).
+	 * 
+	 *  <p>
+	 *  The idea is that option 2 does not happen a lot, and that option 3 is only for exceptional circumstances.
+	 *  </p>
+	 *    
+	 * 
+	 * @param jwtToken
+	 * @throws InvalidLoginInformationException
+	 */
 	
 	@SuppressWarnings("unchecked")
 	public UserInfo(IdToken jwtToken) throws InvalidLoginInformationException {
@@ -74,17 +117,46 @@ public class UserInfo {
 			this.userId = jwtToken.getSubject();
 			this.userName = (String)jwtToken.getClaim(USER_NAME_CLAIM);
 			this.fullName = (String)jwtToken.getClaim(FULL_NAME_CLAIM); 
-			this.admin  = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_ROLES_ADMIN);
+			this.admin  = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_ADMIN_ROLE);
 			this.publicUser = false;
-			this.edrWrite = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_EDR_PUBLIC_WRITE);
+			this.edrPublicWrite = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_EDR_PUBLIC_WRITE_ROLE);
 			if (jwtToken.getClaim(USER_GROUP_PATH_CLAIM) != null && jwtToken.getClaim(USER_GROUP_PATH_CLAIM) instanceof List) {
-				groups.addAll((List<String>)jwtToken.getClaim(USER_GROUP_PATH_CLAIM));
+				writable_paths.addAll((List<String>)jwtToken.getClaim(USER_GROUP_PATH_CLAIM));
+				keyCloackGroups = Collections.unmodifiableSet(writable_paths);
 			} else {
 				throw new InvalidLoginInformationException(USER_GROUP_PATH_CLAIM + " is not present in the JWT token");
 			}
+					
+			// check for read-only folders
+			// if RO folder is also in writable_path: remove it, as default is R+W, but this claim can remove the +W from it
+			if (jwtToken.getClaim(ESDL_DRIVE_READ_ONLY_CLAIM) != null && jwtToken.getClaim(ESDL_DRIVE_READ_ONLY_CLAIM) instanceof List) {
+				read_only_paths.addAll((List<String>)jwtToken.getClaim(ESDL_DRIVE_READ_ONLY_CLAIM));
+			}
+			
+			for (String ro_path: read_only_paths) {
+				if (writable_paths.contains(ro_path)) {
+					writable_paths.remove(ro_path);
+				}
+			}
+			// if subsequently Write access is granted setting the user's attribute esdl-drive-write to a folder path, 
+			// add this to the writable_paths
+			if (jwtToken.getClaim(ESDL_DRIVE_WRITE_CLAIM) != null && jwtToken.getClaim(ESDL_DRIVE_WRITE_CLAIM) instanceof List) {
+				for (String rw_path : (List<String>)jwtToken.getClaim(ESDL_DRIVE_WRITE_CLAIM)) {
+					if (read_only_paths.contains(rw_path)) {
+						read_only_paths.remove(rw_path);
+					}
+					writable_paths.add(rw_path);
+				}
+			}
 			
 			// add personal folder to groups
-			groups.add(AccessController.PERSONAL_FOLDER_PREFIX + this.userName);
+			writable_paths.add(AccessController.PERSONAL_FOLDER_PREFIX + this.userName);
+			Iterator<String> iterator = writable_paths.iterator();
+			// clean up empty paths (with bad configuration)
+			while (iterator.hasNext()) {
+				String path = iterator.next();
+				if (path.isEmpty()) iterator.remove();
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw new InvalidLoginInformationException(e);
@@ -98,8 +170,10 @@ public class UserInfo {
 		this.userName = "publicUser";
 		this.fullName = "Public User";
 		this.publicUser = true;
-		this.edrWrite = false;
-		this.groups.add(AccessController.PUBLIC_FOLDER);
+		this.edrPublicWrite = false;
+		// ESDL Drive public folder is writable by everybody, e.g. to share stuff. Add folder without trailing '/'
+		this.writable_paths.add(AccessController.DRIVE_PUBLIC_FOLDER);
+		this.keyCloackGroups = Collections.unmodifiableSet(writable_paths);
 	}
 	
 	
@@ -137,7 +211,9 @@ public class UserInfo {
 
 	@Override
 	public String toString() {
-		return "UserInfo [userName=" + userName + ", fullName=" + fullName + ", groups=" + groups + ", userId=" + userId + "]";
+		return "UserInfo(userName=" + userName + ", fullName=" + fullName + ", write_folders=" + writable_paths + 
+				", readonly_folders=" + read_only_paths + ", isAdmin=" + admin + ", edrPublicWrite=" + 
+				edrPublicWrite + ", publicUser=" + publicUser + ", userId=" + userId + ")";
 	}
 
 	public String getUserName() {
@@ -148,8 +224,16 @@ public class UserInfo {
 		return fullName;
 	}
 
-	public List<String> getGroups() {
-		return groups;
+	public Set<String> getReadOnlyFolders() {
+		return read_only_paths;
+	}
+	
+	public Set<String> getReadWriteFolders() {
+		return writable_paths;
+	}
+
+	public Set<String> getKeyCloakGroups() {
+		return keyCloackGroups;
 	}
 
 	public String getUserId() {
@@ -161,7 +245,7 @@ public class UserInfo {
 	}
 
 	public boolean hasPublicEDRWriteAccess() {
-		return edrWrite;
+		return edrPublicWrite;
 	}
 	
 	public boolean isPublic() {
@@ -179,4 +263,5 @@ public class UserInfo {
 			super(reason);
 		}
 	}
+
 }

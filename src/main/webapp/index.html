@@ -22,6 +22,7 @@ Manager:
 		<title>ESDL Drive browser</title>
 		<meta name="viewport" content="width=device-width" />
 		<link rel="stylesheet" href="//static.jstree.com/latest/assets/dist/themes/default/style.min.css" />
+
 		<style>
 		html, body { background:#ebebeb; font-size:12px; font-family:Verdana; margin:0; padding:0; }
 		#container { min-width:320px; margin:0px auto 0 auto; background:white; border-radius:0px; padding:0px; overflow:hidden; }
@@ -72,6 +73,7 @@ Manager:
         
 		<div id="container" role="main">
 			<div id="tree"></div>
+			<div id="splitter" style="height: 100%; float: left;width:5px;min-width:5px;padding:0px;background:#d9edf7;border:solid 1px #bce8f1;cursor:col-resize"></div>
 			<div id="data">
 				<div class="content code" style="display:none;"><textarea id="code" readonly="readonly"></textarea></div>
 				<div class="content folder" style="display:none;"></div>
@@ -106,7 +108,12 @@ Manager:
 							if(operation === "move_node" || operation === "copy_node") {
 								if(this.get_node(node).parent === this.get_node(parent).id) { return false; }
 							}
-							if (!parent.original.writable) { return false;}
+							if (parent.original === undefined ||
+                            		!parent.original.writable ||
+                            		!(parent.original.type === 'folder')) {
+                            	return false;
+                        	}
+							
 							return true;
 						},
 						'themes' : {
@@ -148,9 +155,31 @@ Manager:
 									}
 								}
 							};
-							if(this.get_type(node) !== "folder" || !node.original.writable) {
+							if (this.get_type(node) === 'folder') {
+								tmp.refresh = {
+	                                "label": "Refresh",
+	                                "icon": "fa fa-plus",
+	                                "separator_before": true,
+	                                "action": function (data) {
+	                                    var inst = $.jstree.reference(data.reference),
+	                                        obj = inst.get_node(data.reference);
+	                                    //console.log(obj);
+	                                    $('#tree').jstree(true).refresh_node(obj.id);
+	                                }
+	                            };
+	                        }
+							if (this.get_type(node) !== "folder" || !node.original.writable) {
 							    // don't add New menu if it is a file that is selected
 								delete tmp.create;
+							}
+							if (this.get_type(node) === 'folder' && !node.original.writable) {
+								tmp.ccp._disabled = true;
+							}
+							if (this.get_type(node) === 'folder' && !node.original.deletable) {
+								tmp.rename._disabled = true;
+								tmp.remove._disabled = true;
+								tmp.ccp.submenu.cut._disabled = true;
+                            	tmp.ccp.submenu.copy._disabled = true;
 							}
 							return tmp;
 						}
@@ -286,8 +315,33 @@ Manager:
 					}
 				});
 		});
+				
 		
-		
+		</script>
+		<script>
+			var leftPanel = $('#tree');
+			var jDoc = $(document);
+			$('#splitter').mousedown(function (e) {
+			    e.preventDefault();
+			    jDoc.mousemove(function (e) {
+			        e.preventDefault();
+			        var x = e.pageX - leftPanel.offset().left;
+					var windowWidth = $(window).width();
+			        var min = windowWidth/10;
+			        if (x > min && x < windowWidth && e.pageX < (windowWidth - min)) {  
+			        	leftPanel.width(x);
+			    		//jQuery("div#doc-content .markdown-body").each(function() {
+			    		//	var delta = jQuery("#docAppPanel")[0].getBoundingClientRect().right - this.getBoundingClientRect().right - 30;
+		    			//	var jThis = jQuery(this);
+		    			//	jThis.css("max-width", jThis.width()+delta+"px");
+			    		//});
+			        }
+				});
+			});
+		    jDoc.mouseup(function (e) {
+		    	console.log('unbind')
+		   	 	jDoc.unbind('mousemove');
+			});
 		</script>
 	</body>
 </html>

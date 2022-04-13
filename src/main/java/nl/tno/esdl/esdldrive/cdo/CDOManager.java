@@ -724,6 +724,7 @@ public class CDOManager {
 	    };
 
 
+
 	@PreDestroy
 	private void shutdownCDO() {
 		if (connector.isConnected()) {
@@ -759,8 +760,15 @@ public class CDOManager {
 					.filter(rn -> !rn.getName().equals(AccessController.EDR_FOLDER_NAME))
 					.collect(Collectors.toCollection(BasicEList::new));
 		} else {		
-			CDOResourceFolder resourceNode = transaction.getResourceFolder(path);
-			nodes = resourceNode.getNodes();
+			CDOResourceNode resourceNode = transaction.getResourceNode(path);
+			CDOResourceFolder folder = null;
+			if (resourceNode instanceof CDOResourceFolder) {
+				folder = transaction.getResourceFolder(path);
+			} else {
+				folder = resourceNode.getFolder();
+			}
+			if (folder == null) throw new CDOResourceNodeNotFoundException("Can't find requested resource");
+			nodes = folder.getNodes();
 		}
 		ArrayList<BrowserNode> list = new ArrayList<>();
 		for (CDOResourceNode node : nodes) {
@@ -771,6 +779,7 @@ public class CDOManager {
 				if (node instanceof CDOResourceFolder) {
 					CDOResourceFolder cdoResourceFolder = (CDOResourceFolder) node;
 					browserNode.setType(BrowserNodeType.FOLDER);
+					browserNode.setDeletable(permission.isDeletable());
 					if (cdoResourceFolder.getNodes().size() > 0) {
 						browserNode.setHasSubNodes(true);
 						// recurse if necessary
@@ -917,8 +926,8 @@ public class CDOManager {
 	
 	public String rename(UserInfo userInfo, String path, String newName) throws ConcurrentAccessException, CommitException, CDOResourceNodeNotFoundException, PermissionDeniedException {
 		DrivePermission permission = AccessController.getPermission(path, userInfo);
-		if (!permission.isWritable()) {
-			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
+		if (!permission.isWritable() && !permission.isDeletable()) {
+			throw new PermissionDeniedException("Action on " + permission.getPath() + " is not permitted by " + userInfo.getUserName());
 		}
 		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
@@ -971,8 +980,8 @@ public class CDOManager {
 	
 	public void deleteResource(UserInfo userInfo, String path) throws IOException, CDOResourceNodeNotFoundException, ConcurrentAccessException, CommitException, PermissionDeniedException {
 		DrivePermission permission = AccessController.getPermission(path, userInfo);
-		if (!permission.isWritable()) {
-			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
+		if (!permission.isDeletable()) {
+			throw new PermissionDeniedException(permission.getPath() + " is not deletable by " + userInfo.getUserName());
 		}
 		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();
@@ -1162,12 +1171,13 @@ public class CDOManager {
 	 * @param userInfo
 	 */
 	public void ensureUserFoldersPresent(UserInfo userInfo) {
+		System.out.println(userInfo);
 		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
 		if (sessionDetails != null && !sessionDetails.isFoldersPresent()) {
 			CDONet4jSession session = sessionDetails.getCDOSession();
 			CDOTransaction transaction = session.openTransaction();
 			log.info("Ensuring initial groups for user " + userInfo.getUserName());
-			for (String group: userInfo.getGroups()) {
+			for (String group: userInfo.getReadWriteFolders()) {
 				transaction.getOrCreateResourceFolder(group);
 			}
 			

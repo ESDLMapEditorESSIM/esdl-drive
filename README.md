@@ -7,6 +7,27 @@ There is also a commandline tool available to interact with the ESDLDrive and is
 
 It uses Open Liberty as Java server runtime. It supports Eclipse Microprofile and openIdConnect out of the box.
 
+## Access control
+
+Access to folders is based on data in the JWT token. 
+
+Basic rule: Group membership means R+W access to that folder. Group membership is stored in the `group_path` claim and contains the full path of that folder/group, e.g. `/edr/Public` or `/Users/edwin` or `/Organizations/TNO` .
+
+1. If the user is added to a group in Keycloak, it has automatically *write* access to that group. 
+   ESDL Drive makes sure these folders exists when setting up a session to the Drive.
+   
+2. Groups in Keycloak can have the attribute of `esdl-drive-read-only` with the value of the  _full_  path of that group (e.g. `/Projects/ReadOnlyFolder`).
+   If a user is member of this group, it's write-access is revoked. This way it is possible to create read-only folders in Keycloak (albeit a bit hacky, ACLs would be nicer), as Keycloak will aggregate all the 'esdl-drive-read-only' attributes of all groups into a nice list of folder paths.
+
+3. A user can have additional write access to a folder (e.g. for disabling the `esdl-drive-read-only` claim) by setting the user attribute `esdl-drive-write` to a (list of) folder paths.
+This gives the user direct write access to that folder (even without being a group member!) and makes it possible to give
+some users write access to a folder and others not.
+
+To add multiple folders to a users' `esdl-drive-write` attribute separate the folder paths by '##' (keycloak's way of doing this).
+
+The idea is that option 2 does not happen a lot, and that option 3 is only for exceptional circumstances.
+
+
 
 ## Building
 
