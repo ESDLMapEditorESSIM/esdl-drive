@@ -131,11 +131,13 @@ public class UserInfo {
 			// if RO folder is also in writable_path: remove it, as default is R+W, but this claim can remove the +W from it
 			if (jwtToken.getClaim(ESDL_DRIVE_READ_ONLY_CLAIM) != null && jwtToken.getClaim(ESDL_DRIVE_READ_ONLY_CLAIM) instanceof List) {
 				read_only_paths.addAll((List<String>)jwtToken.getClaim(ESDL_DRIVE_READ_ONLY_CLAIM));
+				//System.out.println("Detected read-only paths: " + read_only_paths);
 			}
 			
 			for (String ro_path: read_only_paths) {
 				if (writable_paths.contains(ro_path)) {
 					writable_paths.remove(ro_path);
+					//System.out.println("removing ro-path from write paths " + ro_path);
 				}
 			}
 			// if subsequently Write access is granted setting the user's attribute esdl-drive-write to a folder path, 
@@ -144,8 +146,10 @@ public class UserInfo {
 				for (String rw_path : (List<String>)jwtToken.getClaim(ESDL_DRIVE_WRITE_CLAIM)) {
 					if (read_only_paths.contains(rw_path)) {
 						read_only_paths.remove(rw_path);
+						//System.out.println("removing " + rw_path + " from RO paths, as user has write attribite");
 					}
 					writable_paths.add(rw_path);
+					//System.out.println("Adding additional write path: " + rw_path);
 				}
 			}
 			

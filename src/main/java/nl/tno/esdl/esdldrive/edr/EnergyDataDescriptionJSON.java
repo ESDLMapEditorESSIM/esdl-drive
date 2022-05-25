@@ -73,7 +73,10 @@ public class EnergyDataDescriptionJSON {
 		edd.setDescription(description);
 		edd.setGraphURL(graphURL);
 		edd.setVersion(version);
-		edd.getTags().addAll(tags);
+		
+		if (tags != null && !tags.isEmpty()) {
+			edd.getTags().addAll(tags);
+		}
 		
 		// handle ESDL string
 		String esdl = getEsdl();
@@ -138,15 +141,15 @@ public class EnergyDataDescriptionJSON {
 				}
 			}
 			if (addESDL) {
-				ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+				ByteArrayOutputStream byteArrayStream = new ByteArrayOutputStream();
 				XMLResource resource = new XMLResourceImpl();
 				// need to copy here as esdlObject is CDOObject with references to the database
 				resource.getContents().add(EcoreUtil.copy(esdlObject));
 				HashMap<String, Object> options = new HashMap<String, Object>();
 				options.put(XMLResource.OPTION_ENCODING, "UTF-8");
 				try {
-					resource.save(byteArray, options);
-					byte[] encoded = Base64.getEncoder().encode(byteArray.toByteArray());
+					resource.save(byteArrayStream, options);
+					byte[] encoded = Base64.getEncoder().encode(byteArrayStream.toByteArray());
 					json.setEsdl(new String(encoded, "UTF-8"));
 				} catch (IOException e) {
 					e.printStackTrace();

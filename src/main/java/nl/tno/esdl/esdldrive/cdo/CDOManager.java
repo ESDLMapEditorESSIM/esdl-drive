@@ -830,6 +830,7 @@ public class CDOManager {
 		if (resourceNode instanceof CDOResourceFolder || fileName.equals("/")) {
 			map.put("type", "folder");
 			map.put("writable", permission.isWritable());
+			map.put("deletable", permission.isDeletable());
 			map.put("path", fileName);
 			return map;
 		}
@@ -1171,7 +1172,7 @@ public class CDOManager {
 	 * @param userInfo
 	 */
 	public void ensureUserFoldersPresent(UserInfo userInfo) {
-		System.out.println(userInfo);
+		//System.out.println(userInfo);
 		SessionDetails sessionDetails = sessionMap.get(userInfo.getUserName());
 		if (sessionDetails != null && !sessionDetails.isFoldersPresent()) {
 			CDONet4jSession session = sessionDetails.getCDOSession();
@@ -1182,7 +1183,7 @@ public class CDOManager {
 			}
 			
 			try {
-				transaction.setCommitComment("Created folder");
+				transaction.setCommitComment("Create initial folders for " + userInfo.getUserName());
 				transaction.commit();
 				sessionDetails.setFoldersPresent(true);
 			} catch (ConcurrentAccessException e) {

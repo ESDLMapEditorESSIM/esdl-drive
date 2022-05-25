@@ -68,6 +68,7 @@ import com.ibm.websphere.security.openidconnect.token.IdToken;
 import nl.tno.esdl.esdldrive.browser.BrowserNode.BrowserNodeType;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
+import nl.tno.esdl.esdldrive.cdo.DrivePermission;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
@@ -244,7 +245,12 @@ public class BrowserController {
 				try {
 					log.info("Creating folder:" + newPath);
 					String newFolder = cdoManager.createFolder(userInfo, newPath);
-					jsonObject = Json.createObjectBuilder().add("id", newFolder).build();
+					DrivePermission permission = AccessController.getPermission(newFolder, userInfo);
+					jsonObject = Json.createObjectBuilder()
+							.add("id", newFolder)
+							.add("writable", permission.isWritable())
+							.add("deletable", permission.isDeletable())
+							.build();
 				} catch (CommitException e) {
 					log.severe("Error in creating folder:" + e);
 					return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).entity(generateError("error creating folder")).build();
