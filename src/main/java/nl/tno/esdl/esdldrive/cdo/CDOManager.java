@@ -644,6 +644,7 @@ public class CDOManager {
 //			configuration.addListener(cdoEventListener);
 
 			
+			log.info("Registering ESDL and EDR models.");
 			// register EDR model
 			EddFactory.eINSTANCE.eClass();
 			// Register ESDL
@@ -943,9 +944,11 @@ public class CDOManager {
 				resourceNode.setName(newName);
 				transaction.commit();
 				String newPathName = resourceNode.getPath();
-				cachedModel.setPath(newPathName);
-				getCache().remove(oldPath);
-				getCache().put(newPathName, cachedModel);
+				if (cachedModel != null) {
+					cachedModel.setPath(newPathName);
+					getCache().remove(oldPath);
+					getCache().put(newPathName, cachedModel);
+				}
 			} else {
 				// for folders: invalidate cache for the files that this folder contains
 				HashMap<CDOResource, CachedModel> renamedResources = new HashMap<>();

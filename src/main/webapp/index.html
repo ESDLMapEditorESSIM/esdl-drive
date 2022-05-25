@@ -202,7 +202,7 @@ Manager:
 					'plugins' : ['state','dnd','sort','types','contextmenu','unique']
 				})
 				.on('delete_node.jstree', function (e, data) {
-					$.get('/store/browse?operation=delete_node', { 'id' : data.node.id })
+					$.get('/store/browse?operation=delete_node', { 'id' : encodeURIComponent(data.node.id) })
 						.fail(function (response) {
 							if (response.status == 403) { // PermissionDenied
 								alert(response.responseJSON.error);
@@ -211,7 +211,7 @@ Manager:
 						});
 				})
 				.on('create_node.jstree', function (e, data) {
-					$.get('/store/browse?operation=create_node', { 'type' : data.node.type, 'id' : data.node.parent, 'text' : data.node.text })
+					$.get('/store/browse?operation=create_node', { 'type' : data.node.type, 'id' : encodeURIComponent(data.node.parent), 'text' : data.node.text })
 						.done(function (d) {
 							data.instance.set_id(data.node, d.id);
 							for(let key in d) {
@@ -226,9 +226,12 @@ Manager:
 						});
 				})
 				.on('rename_node.jstree', function (e, data) {
-					$.get('/store/browse?operation=rename_node', { 'id' : data.node.id, 'text' : data.text })
+					$.get('/store/browse?operation=rename_node', { 'id' : encodeURIComponent(data.node.id), 'text' : data.text })
 						.done(function (d) {
 							data.instance.set_id(data.node, d.id);
+							if (data.node.type === 'folder') {
+								data.instance.refresh_node(d.id);
+							}
 						})
 						.fail(function (response) {
 							if (response.status == 403) { // PermissionDenied
@@ -238,7 +241,7 @@ Manager:
 						});
 				})
 				.on('move_node.jstree', function (e, data) {
-					$.get('/store/browse?operation=move_node', { 'id' : data.node.id, 'parent' : data.parent })
+					$.get('/store/browse?operation=move_node', { 'id' : encodeURIComponent(data.node.id), 'parent' : data.parent })
 						.done(function (d) {
 							data.instance.load_node(data.parent);
 							//data.instance.refresh();
@@ -251,7 +254,7 @@ Manager:
 						});
 				})
 				.on('copy_node.jstree', function (e, data) {
-					$.get('/store/browse?operation=copy_node', { 'id' : data.original.id, 'parent' : data.parent })
+					$.get('/store/browse?operation=copy_node', { 'id' : encodeURIComponent(data.original.id), 'parent' : data.parent })
 						.done(function (d) {
 							data.instance.load_node(data.parent);
 							//data.instance.refresh();
@@ -265,7 +268,7 @@ Manager:
 				})
 				.on('changed.jstree', function (e, data) {
 					if(data && data.selected && data.selected.length) {
-						$.get('/store/browse?operation=get_content&id=' + data.selected.join(':'), function (d) {
+						$.get('/store/browse?operation=get_content&id=' + encodeURIComponent(data.selected.join(':')), function (d) {
 							if(d && typeof d.type !== 'undefined') {
 								$('#data .content').hide();
 								console.log(d);

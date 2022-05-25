@@ -6,7 +6,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nl.tno.esdl</groupId>
 	<artifactId>esdl-drive</artifactId>
-	<version>22.03</version>
+	<version>22.05</version>
 	<packaging>war</packaging>
 	<properties>
 		<openliberty.maven.version>3.3.4</openliberty.maven.version>

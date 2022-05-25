@@ -86,10 +86,11 @@ public class EDRResource {
     			schema = @Schema(enumeration = {"get_node", "get_content"}, 
     			description = "Operation:\n * `get_node` - Gets a listing of a folder \n * `get_content` - Get a content description of a file"), 
     			example = "get_node"),
+    	@Parameter(allowEmptyValue = true, name = "depth", in = ParameterIn.QUERY, description = "In case of listing folders (get_node), it will retrieve this amount of levels in the hierarchy. Default 1", schema = @Schema(type = SchemaType.STRING)),
     	@Parameter(allowEmptyValue = false, name = "id", in = ParameterIn.QUERY, description = "The path or file to get information from", schema = @Schema(type = SchemaType.STRING), example= "/edr/Public"),
-    	@Parameter(allowEmptyValue = true, name = "text", in = ParameterIn.QUERY, description = "In case of renaming (rename_node), its new name", schema = @Schema(type = SchemaType.STRING)),
-    	@Parameter(allowEmptyValue = true, name = "type", in = ParameterIn.QUERY, description = "In case of creating new nodes (create_node), the type of node (e.g. folder)", schema = @Schema(type = SchemaType.STRING)),
-    	@Parameter(allowEmptyValue = true, name = "parent", in = ParameterIn.QUERY, description = "In case of copying or moving files or folders (copy_node or move_node), the path of the parent folder where it needs to move/copy", schema = @Schema(type = SchemaType.STRING))
+    	//@Parameter(allowEmptyValue = true, name = "text", in = ParameterIn.QUERY, description = "In case of renaming (rename_node), its new name", schema = @Schema(type = SchemaType.STRING)),
+    	//@Parameter(allowEmptyValue = true, name = "type", in = ParameterIn.QUERY, description = "In case of creating new nodes (create_node), the type of node (e.g. folder)", schema = @Schema(type = SchemaType.STRING)),
+    	//@Parameter(allowEmptyValue = true, name = "parent", in = ParameterIn.QUERY, description = "In case of copying or moving files or folders (copy_node or move_node), the path of the parent folder where it needs to move/copy", schema = @Schema(type = SchemaType.STRING))
     })
     @APIResponses({
     	@APIResponse(responseCode = "202", description = "JSON response for the query", content = @Content(mediaType = "application/json")),
@@ -300,14 +301,16 @@ public class EDRResource {
 	@Operation(summary="Upload a new Energy Data Description to the EDR")
 	@Parameters({
 		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces) for upload. Use .edd as file extension.", example = "/edr/Public/ETM/ETM WindTurbine.edd"),
+		@Parameter(name = "commitMessage", in = ParameterIn.QUERY, description = "The commit message used when uploading the new or updated file")
 	})
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
 	@APIResponses( {
 		@APIResponse(responseCode = "201", description = "Upload successful, created resource at resourceURL"),
-		@APIResponse(responseCode = "403", description = "Access denied, provide proper credentials")
+		@APIResponse(responseCode = "403", description = "Access denied, provide proper credentials"),
+		@APIResponse(responseCode = "500", description = "Internal server error.")
 	})
-	public Response upload(EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL) throws URISyntaxException {
+	public Response upload(EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL, @QueryParam("commitMessage") String commitMessage) throws URISyntaxException {
 		String path = URI.decode(resourceURL);
 		if (path.isEmpty()) {
 			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Missing path and filename of this EDD in EDR. Put it after the url /upload/<path to store>")).build();
@@ -316,7 +319,10 @@ public class EDRResource {
 			path = "/" + path;
 		}
 		
-		String commitMessage = null; // TODO: fixme
+		if (commitMessage == null || commitMessage.isBlank()) {
+			commitMessage = "No commit message";
+		}
+		commitMessage = URI.decode(commitMessage);
 		UserInfo userInfo;
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());

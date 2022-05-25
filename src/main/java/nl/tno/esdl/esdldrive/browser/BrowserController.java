@@ -19,6 +19,8 @@ package nl.tno.esdl.esdldrive.browser;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +53,7 @@ import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CommitException;
+import org.eclipse.emf.common.util.URI;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
@@ -167,6 +170,9 @@ public class BrowserController {
         if (id == null || id.isEmpty()) {
         	return Response.serverError().status(Status.BAD_REQUEST).entity(generateError("id parameter missing")).build();
         }
+        id = URI.decode(id);
+        newName = URI.decode(newName);
+        parent = URI.decode(parent);
         
         JsonStructure jsonObject = null;
         //System.out.println(securityContext.getUserPrincipal().getClass().getName());
