@@ -21,6 +21,7 @@ import javax.ws.rs.core.Application;
 
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.openapi.annotations.Components;
+import org.eclipse.microprofile.openapi.annotations.ExternalDocumentation;
 import org.eclipse.microprofile.openapi.annotations.OpenAPIDefinition;
 import org.eclipse.microprofile.openapi.annotations.enums.SecuritySchemeType;
 import org.eclipse.microprofile.openapi.annotations.info.Contact;
@@ -28,12 +29,17 @@ import org.eclipse.microprofile.openapi.annotations.info.Info;
 import org.eclipse.microprofile.openapi.annotations.info.License;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
  *
  */
 //@LoginConfig(authMethod = "MP-JWT")
 @OpenAPIDefinition(
+	tags = {@Tag(name = "ESDL Drive", description="API for accessing the ESDLDrive"),
+			@Tag(name = "ESDL Validator", description="API for validating an ESDL file"),
+			@Tag(name = "EDR", description = "API for accessing the embedded Energy Data Repository")
+	},
 	components = 
 		@Components(securitySchemes = {
 				@SecurityScheme(
@@ -59,11 +65,13 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
 	info = @Info(
 			contact = @Contact(email = "ewoud.werkman@tno.nl", name = "Ewoud Werkman", url = "http://www.tno.nl/"), 
 			title = "ESDL Drive", 
-			version="22.03",
+			version="22.xx",
 			description = "This API provides ways to store and retrieve ESDL files from the ESDL Drive, a storage solution for ESDL files",
-			license = @License(name = "Apache License 2.0", url="https://www.apache.org/licenses/LICENSE-2.0.html")) 
+			license = @License(name = "Apache License 2.0", url="https://www.apache.org/licenses/LICENSE-2.0.html")), 
+	externalDocs = @ExternalDocumentation(description = "ESDL model documentation", url = "https://energytransition.github.io")  
 	
 	)
+	// the version of the info section of OpenAPI spec is overridden in ESDLDriveOASFilter
 @ApplicationPath("/store")
 public class ESDLDriveApplication extends Application {
 	public final static String version =  ConfigProvider.getConfig().getValue("esdldrive.version", String.class);

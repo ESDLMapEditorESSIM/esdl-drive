@@ -24,6 +24,7 @@ import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
@@ -31,6 +32,8 @@ import javax.ws.rs.core.Response.Status;
 import org.eclipse.emf.cdo.CDOObjectHistory;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.eresource.CDOResource;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
@@ -54,6 +57,9 @@ public class CDORevisionResource {
 	@Path("/{resourceURL:.+}")
 	@RolesAllowed("cdo_read")
 	@GET
+	@Produces(MediaType.TEXT_HTML)
+	@Operation(deprecated = true, description = "Lists the commits for this resource")
+	@Tag(ref = "ESDL Drive")
 	public Response listHistory(@PathParam("resourceURL") String resourceURL) {
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;

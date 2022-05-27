@@ -52,6 +52,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import esdl.EsdlPackage;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
@@ -75,6 +76,7 @@ public class ESDLValidator {
 	// All roles are allowed: @RolesAllowed("cdo_read")
 	@POST
 	@Operation(summary = "Validates the ESDL file and checks for errors in the XML")
+	@Tag(ref = "ESDL Validator")
 	@Consumes({MediaType.APPLICATION_XML + "; charset=utf-8", MediaType.APPLICATION_OCTET_STREAM + "; charset=utf-8"})
 	@Produces(MediaType.APPLICATION_JSON + "; charset=utf-8")
 	@Parameters({

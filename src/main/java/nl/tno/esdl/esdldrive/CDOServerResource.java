@@ -65,6 +65,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
@@ -101,6 +102,7 @@ public class CDOServerResource {
 	@Produces(MediaType.APPLICATION_XML)
 	@RolesAllowed("cdo_read")
 	@Operation(summary = "Retrieves a ESDL-file from the server", description = "It loads the ESDL-file from the cache, or if not available or 'nocache=true', loads it from the database. If a revision=[EpochMilliseconds] is added to the request URI it will load the version of this Energy system at that time, if available.")
+	@Tag(ref = "ESDL Drive")
 	@Parameters({
 		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/Projects/MyProject/MyEnergySystem.esdl"),
 		@Parameter(allowEmptyValue = true, name = "revision", in = ParameterIn.QUERY, description = "The revision to get from this resource, defined as the creation time of the revision in EPOCH milliseconds"),
@@ -162,6 +164,7 @@ public class CDOServerResource {
 	
 	@GET
 	@Path("/resource/public/{resourceURL:.+}")
+	@Tag(ref = "ESDL Drive")
 	@Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
 	@APIResponses({
 		@APIResponse(description = "Retrieves the file as JSON or XML", responseCode = "200", content = {
@@ -218,6 +221,7 @@ public class CDOServerResource {
 	@Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_OCTET_STREAM})
 	@RolesAllowed("cdo_read")
 	@Operation(summary = "Stores a ESDL-file to the ESDL Drive", description = "When a file is being saved and already exists in the database, it calculates the differences and only stores the diffences. When this gives issues, use 'overwrite=true' in the query to always overwrite the old version.")
+	@Tag(ref = "ESDL Drive")
 	@Parameters({
 			@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. /folder1/myEnergySystem.esdl. If it has spaces, it needs to be url encoded", example = "/Projects/MyProject/MyEnergySystem.esdl"),
 			@Parameter(allowEmptyValue = true, name = "commitMessage", in = ParameterIn.QUERY, description = "The commit message that is added to the history of this save action", example = "Cool commit message"),
@@ -320,6 +324,7 @@ public class CDOServerResource {
 	 * 
 	 */
 	@Operation(description = "Returns the status of the resource, e.g. if it exists and the last-modified state", summary = "Checks if a file exists in the database")
+	@Tag(ref = "ESDL Drive")
 	@Parameter(allowEmptyValue = false, name = "resourceURL", description = "The path and filename of the resource, e.g. folder1/myEnergySystem.esdl, without spaces", example = "folder/filename.esdl")
 	@APIResponses({
 		@APIResponse(responseCode = "200", description = "Returns OK if the resource exists and is accessible by the user"),
@@ -382,6 +387,7 @@ public class CDOServerResource {
 	@RolesAllowed("cdo_read")
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(summary = "Invalidates the user session", description="Removes the current session with the server and the backend")
+	@Tag(ref = "ESDL Drive")
 	public Response logout(@Context HttpServletRequest servletRequest, @Context SecurityContext securityContext) {
 		UserInfo userInfo;
 		try {
@@ -412,6 +418,7 @@ public class CDOServerResource {
 	@RolesAllowed("cdo_read")
 	@Operation(summary = "Lists all the files the database that the logged-in user can access", deprecated = true, 
 			description= "Deprecated, as this operation becomes quite expensive then the amount of files in the database grows. Use the /store/browse endpoint instead. Returns a json array with file-path and names.")
+	@Tag(ref = "ESDL Drive")
 	public Response listResources() {
 //		log.info("Token: " + callerPrincipal);
 //		log.info("Username: " + callerPrincipal.getName());

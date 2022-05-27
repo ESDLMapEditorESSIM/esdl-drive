@@ -19,8 +19,6 @@ package nl.tno.esdl.esdldrive.browser;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +62,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 import com.ibm.websphere.security.openidconnect.token.IdToken;
@@ -127,10 +126,11 @@ public class BrowserController {
     @Produces(MediaType.APPLICATION_JSON)
     @Operation(summary = "Browse through the repository files and folders and get information about these files",
     	description="This endpoint is used in combination with a JSTree to create a file browser for the repository. The API is based on JSTree's API")
+    @Tag(ref = "ESDL Drive")
     @Parameters({
-    	@Parameter(allowEmptyValue = false, name = "operation", in = ParameterIn.QUERY, description = ">The operation to execute\nOperation:\\n * `get_node` - Gets a listing of a folder \\n * `get_content` - Get a content description of a file", 
+    	@Parameter(allowEmptyValue = false, name = "operation", in = ParameterIn.QUERY, description = "The operation to execute <br> Operation:<br> * `get_node` - Gets a listing of a folder <br> * `get_content` - Get a content description of a file", 
     			schema = @Schema(enumeration = {"get_node", "move_node", "copy_node", "delete_node", "create_node", "rename_node", "get_content", "get_revisions"}, 
-    			description = "Operation:\n * `get_node` - Gets a listing of a folder \n * `get_content` - Get a content description of a file"), 
+    			description = "Operation:<br> * `get_node` - Gets a listing of a folder <br> * `get_content` - Get a content description of a file"), 
     			example = "get_node"),
     	@Parameter(allowEmptyValue = false, name = "id", in = ParameterIn.QUERY, description = "The path or file to get information from", schema = @Schema(type = SchemaType.STRING), example= "/Projects"),
     	@Parameter(allowEmptyValue = true, name = "text", in = ParameterIn.QUERY, description = "In case of renaming (rename_node), its new name", schema = @Schema(type = SchemaType.STRING)),

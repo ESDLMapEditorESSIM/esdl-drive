@@ -30,7 +30,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -79,8 +78,8 @@ import org.eclipse.emf.common.util.ECollections;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.compare.Comparison;
-import org.eclipse.emf.compare.Diff;
 import org.eclipse.emf.compare.EMFCompare;
+import org.eclipse.emf.compare.merge.BatchMerger;
 import org.eclipse.emf.compare.merge.IMerger;
 import org.eclipse.emf.compare.merge.IMerger.Registry;
 import org.eclipse.emf.compare.scope.DefaultComparisonScope;
@@ -289,19 +288,21 @@ public class CDOManager {
 					throw new MergeConfictException("Conflict(s) detected during saving.");
 				}
 				log.info("Merging differences: " + comparison.getDifferences().size() );
-// TODO check if this works:
-//				final BatchMerger batchMerger = new BatchMerger(emfCompareMergerRegistry);
-//				batchMerger.copyAllRightToLeft(comparison.getDifferences(), emfCompareMonitor);
-				LinkedList<Diff> diffs = new LinkedList<Diff>();
-				for (Diff diff: comparison.getDifferences()) {
-					createMergeDiffList(diffs, diff, 0);
-				}
-				log.info("Diff list size: " + diffs.size() );
-				while (!diffs.isEmpty()) {
-					Diff diff = diffs.removeLast(); // iterate from tail to head
-					IMerger merger = emfCompareMergerRegistry.getHighestRankingMerger(diff);
-					merger.copyRightToLeft(diff, emfCompareMonitor);
-				}
+				// Now testing if this works:
+				final BatchMerger batchMerger = new BatchMerger(emfCompareMergerRegistry);
+				batchMerger.copyAllRightToLeft(comparison.getDifferences(), emfCompareMonitor);
+
+				// TODO: remove below code if above two lines work..
+				//				LinkedList<Diff> diffs = new LinkedList<Diff>();
+//				for (Diff diff: comparison.getDifferences()) {
+//					createMergeDiffList(diffs, diff, 0);
+//				}
+//				log.info("Diff list size: " + diffs.size() );
+//				while (!diffs.isEmpty()) {
+//					Diff diff = diffs.removeLast(); // iterate from tail to head
+//					IMerger merger = emfCompareMergerRegistry.getHighestRankingMerger(diff);
+//					merger.copyRightToLeft(diff, emfCompareMonitor);
+//				}
 
 				
 				if (commitMessage == null) {
@@ -362,16 +363,16 @@ public class CDOManager {
 	}
 	
 	
-	private void createMergeDiffList(LinkedList<Diff> diffs, Diff diff, int depth) {
-		diffs.addLast(diff);
-		for (Diff req: diff.getRequires()) {
-			if (!diffs.contains(req)) { 
-				diffs.addLast(req);
-				createMergeDiffList(diffs, req, depth+1);
-				//System.out.println("RecursiveMerge depth:"+depth+1);
-			}
-		}
-	}
+//	private void createMergeDiffList(LinkedList<Diff> diffs, Diff diff, int depth) {
+//		diffs.addLast(diff);
+//		for (Diff req: diff.getRequires()) {
+//			if (!diffs.contains(req)) { 
+//				diffs.addLast(req);
+//				createMergeDiffList(diffs, req, depth+1);
+//				//System.out.println("RecursiveMerge depth:"+depth+1);
+//			}
+//		}
+//	}
 
 	/**
 	 * @see #getResource(UserInfo, String, Long)

@@ -52,6 +52,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
@@ -81,8 +82,9 @@ public class EDRResource {
 	@Path("/browse")
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(summary = "Browse the public EDR")
+	@Tag(ref = "EDR")
 	@Parameters({
-    	@Parameter(allowEmptyValue = false, name = "operation", in = ParameterIn.QUERY, description = ">The operation to execute\nOperation:\\n * `get_node` - Gets a listing of a folder \\n * `get_content` - Get a content description of a file", 
+    	@Parameter(allowEmptyValue = false, name = "operation", in = ParameterIn.QUERY, description = "The operation to execute<br>Operation: <br> * `get_node` - Gets a listing of a folder <br> * `get_content` - Get a content description of a file", 
     			schema = @Schema(enumeration = {"get_node", "get_content"}, 
     			description = "Operation:\n * `get_node` - Gets a listing of a folder \n * `get_content` - Get a content description of a file"), 
     			example = "get_node"),
@@ -153,6 +155,7 @@ public class EDRResource {
 	@Parameters({
 		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces)", example = "/edr/Public/Assets/ETM/ETM WindTurbine.edd"),
 	})
+	@Tag(ref = "EDR")
 	public Response getPublicEDRESDL(@PathParam("resourceURL") String resourceURL) {
 		String path = URI.decode(resourceURL);
 		if (!path.startsWith("/")) {
@@ -196,6 +199,7 @@ public class EDRResource {
 	
 	@GET
 	@Path("/search")
+	@Tag(ref = "EDR")
 	@Operation(summary="Search for a certain ESDL type in the public Energy Data Repository", deprecated = true)
 	@Produces(MediaType.APPLICATION_JSON)
 	@Deprecated	
@@ -212,6 +216,7 @@ public class EDRResource {
 	@GET
 	@Path("/query")
 	@Operation(summary="Query EnergyData Descriptions in the database")
+	@Tag(ref = "EDR")
 	@Parameters({
 		@Parameter(name = "path", in = ParameterIn.QUERY, description = "Retrieve a specific EDD based on the path of the description (id field), all filters are ignored"),
 		@Parameter(name = "title", in = ParameterIn.QUERY, description = "Filter based on title"),
@@ -298,6 +303,7 @@ public class EDRResource {
 	@RolesAllowed("cdo_read")
 	@POST
 	@Path("/upload/{resourceURL:.+}")
+	@Tag(ref = "EDR")
 	@Operation(summary="Upload a new Energy Data Description to the EDR")
 	@Parameters({
 		@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource (URL-encoded if using spaces) for upload. Use .edd as file extension.", example = "/edr/Public/ETM/ETM WindTurbine.edd"),
