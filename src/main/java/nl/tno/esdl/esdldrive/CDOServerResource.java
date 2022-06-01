@@ -19,6 +19,7 @@ package nl.tno.esdl.esdldrive;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
@@ -55,6 +56,7 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -96,6 +98,9 @@ public class CDOServerResource {
 	@Inject
 	CDOManager cdoManager;
 	
+	@Context 
+	private HttpServletRequest request;
+	
 
 	@GET
 	@Path("/resource/{resourceURL:.+}")
@@ -130,7 +135,7 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
 		}
 				
-		log.info("getResource() ResourceURL: " + resourceURL);
+		log.info("getResource() ResourceURL: " + resourceURL + " [username=" + userInfo.getUserName() + ", ip=" + request.getRemoteAddr() + "]");
 		// try to find it in the cache
 		String cachedModel = cdoManager.getCachedModelXML(resourceURL);
 		if (cachedModel != null && revision == null && !nocache) {
@@ -152,6 +157,7 @@ public class CDOServerResource {
 				cdoManager.setCache(resourceURL,xmlString, cdoResource);
 			}
 			Date lastModified = resourceResult.getLastModified();
+			resourceResult.close();
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
 			if (!(e instanceof CDOResourceNodeNotFoundException) && !(e instanceof InvalidURIException)) { // ignore these errors
@@ -177,9 +183,9 @@ public class CDOServerResource {
 			resourceURL = "/" + resourceURL;
 		}
 		PublicUserInfo userInfo = new PublicUserInfo();
-		resourceURL = AccessController.PUBLIC_FOLDER + resourceURL; // make sure to look in public folders only
+		resourceURL = AccessController.PUBLIC_FOLDER_PATH + resourceURL; // make sure to look in public folders only
 		System.out.println("PUBLIC Retrieving " + resourceURL);
-		log.info("PUBLIC getResource() ResourceURL: " + resourceURL);
+		log.info("PUBLIC getResource() ResourceURL: " + resourceURL + " [username=" + userInfo.getUserName() + ", ip=" + request.getRemoteAddr() + "]");
 		boolean jsonContentType = headers.getAcceptableMediaTypes().contains(MediaType.APPLICATION_JSON_TYPE);
 
 		// try to find it in the cache
@@ -253,7 +259,7 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
 		DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
-		System.out.println("putResource: " + resourceURL);
+		System.out.println("putResource: " + resourceURL + " [username=" + userInfo.getUserName() + ", ip=" + request.getRemoteAddr() + "]");
 		if (permission.isWritable()) {
 			
 			// put in cache: and convert to EMF model
@@ -338,10 +344,10 @@ public class CDOServerResource {
 		if (!resourceURL.startsWith("/")) {
 			resourceURL = "/" + resourceURL;
 		}
-		log.info("getResource() ResourceURL: " + resourceURL);
 		boolean resourceExists = false;
 		try {
 			UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+			log.info("HEAD ResourceURL: " + resourceURL + " [username=" + userInfo.getUserName() + ", ip=" + request.getRemoteAddr() + "]");
 			
 			DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
 			if (!permission.isAccessible()) {
@@ -388,7 +394,7 @@ public class CDOServerResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	@Operation(summary = "Invalidates the user session", description="Removes the current session with the server and the backend")
 	@Tag(ref = "ESDL Drive")
-	public Response logout(@Context HttpServletRequest servletRequest, @Context SecurityContext securityContext) {
+	public Response logout(@Context SecurityContext securityContext) {
 		UserInfo userInfo;
 		try {
 			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
@@ -397,16 +403,25 @@ public class CDOServerResource {
 		}
 		if (userInfo != null) {
 			cdoManager.logoutSession(userInfo);
-			if (servletRequest != null) {
+			if (request != null) {
 				try {
-					servletRequest.logout();
+					request.logout();
 				} catch (ServletException e) {
 					e.printStackTrace();
 					return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
 				}
 			}
-			System.out.println(securityContext);
-			return Response.ok().build();
+			log.info("Logout request, principal=" + securityContext.getUserPrincipal() + " [username=" + userInfo.getUserName() + ", ip=" + request.getRemoteAddr() + "]");
+			String keycloak_base_url = ConfigProvider.getConfig().getValue("keycloak_realm", String.class);
+			//return redirect(oidc.client_secrets.get('issuer') + '/protocol/openid-connect/logout?redirect_uri=' + request.host_url)
+			String serverURL = request.getScheme() + "://" + request.getServerName()+":"+request.getServerPort() + "/";
+			String redirect_url = keycloak_base_url + "/protocol/openid-connect/logout?redirect_uri=" + serverURL;
+			
+			log.info("redirect uri: " + redirect_url);
+			return Response.seeOther(URI.create(redirect_url)).build();
+			//return Response.ok("Logout complete").build();
+			//keycloak_realm
+			//<variable name="keycloak_realm" value="https://idm.hesi.energy/auth/realms/esdl-mapeditor" />
 		} else {
 			return Response.serverError().status(Status.FORBIDDEN).build();
 		}

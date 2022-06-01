@@ -16,10 +16,8 @@
 
 package nl.tno.esdl.esdldrive.cdo;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,14 +36,14 @@ import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 public class AccessController {
 	
 	
-	public static final String PERSONAL_FOLDER_PREFIX = "/Users/";
-	public static final String DRIVE_PUBLIC_FOLDER = "/Public";
-	public static final String PUBLIC_FOLDER = DRIVE_PUBLIC_FOLDER + "/";
+	public static final String PERSONAL_FOLDER_PATH = "/Users/";
+	public static final String DRIVE_PUBLIC_FOLDER_PREFIX = "/Public";
+	public static final String PUBLIC_FOLDER_PATH = DRIVE_PUBLIC_FOLDER_PREFIX + "/";
 	public static final String EDR_FOLDER_NAME = "edr";
-	public static final String EDR_PUBLIC_FOLDER_PATH = "/" + EDR_FOLDER_NAME + PUBLIC_FOLDER;
+	public static final String EDR_PUBLIC_FOLDER_PATH = "/" + EDR_FOLDER_NAME + PUBLIC_FOLDER_PATH;
 	
 	// specific case for /edr/Public, if you have the role of edr-public-write then you can write to the EDR public folder
-	public static List<String> readOnlyPaths = Arrays.asList(EDR_PUBLIC_FOLDER_PATH); 
+	//public static List<String> readOnlyPaths = Arrays.asList(EDR_PUBLIC_FOLDER_PATH); 
 	
 	public static UserInfo userInfoFromToken(IdToken jwtToken) throws InvalidLoginInformationException {
 		return new UserInfo(jwtToken);
@@ -59,11 +57,12 @@ public class AccessController {
 		// and the path equals /edr/Public (special case)
 		Set<String> readOnlyFolders = userInfo.getReadOnlyFolders();
 		Set<String> completeROfolderList = new HashSet<String>();
-		completeROfolderList.addAll(readOnlyPaths);
+		//completeROfolderList.addAll(readOnlyPaths);
 		completeROfolderList.addAll(readOnlyFolders);
 		for (String readOnlyPath: completeROfolderList) {
 			if (path.startsWith(readOnlyPath)) {
 				if (userInfo.hasPublicEDRWriteAccess() && path.startsWith(EDR_PUBLIC_FOLDER_PATH)) {  // /edr/Public/Test vs /edr/Public/
+					// specific case for /edr/Public, if you have the role of edr-public-write then you can write to the EDR public folder
 					// correct role to write to the EDR
 					return new DrivePermission(path, readOnlyPath, true, true);
 				} else {

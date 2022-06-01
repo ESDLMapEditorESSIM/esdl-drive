@@ -30,7 +30,7 @@
 	<!--  so it can access the /metrics administration endpoint -->
 	<administrator-role>
     	<user-access-id>user:${keycloak_realm_external}/ewoud.werkman@tno.nl</user-access-id>
-   	 	<group-access-id>group:${keycloak_realm_external}/cdo_read</group-access-id>
+<!--    	 	<group-access-id>group:${keycloak_realm_external}/cdo_read</group-access-id> -->
 	</administrator-role>
 	
 </server>

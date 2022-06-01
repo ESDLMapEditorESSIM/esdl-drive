@@ -49,6 +49,7 @@ import javax.jms.IllegalStateException;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.CDOObjectHistory;
+import org.eclipse.emf.cdo.CDOState;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.revision.CDORevision;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
@@ -305,7 +306,7 @@ public class CDOManager {
 //				}
 
 				
-				if (commitMessage == null) {
+				if (commitMessage == null || commitMessage.isEmpty()) {
 					commitMessage = "Update";
 				}
 				commitMessage += " (" + comparison.getDifferences().size() + " changes)";
@@ -392,7 +393,7 @@ public class CDOManager {
 	 * @throws IOException
 	 */
 	public ResourceResult getResource(UserInfo userInfo, String resourceName, Long revision) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
-		log.info("Starting getResource transaction");
+		//log.info("Starting getResource transaction");
 		DrivePermission permission = AccessController.getPermission(resourceName, userInfo);
 		if (!(userInfo.isAdmin() || permission.isAccessible())) {
 			throw new PermissionDeniedException(resourceName + " is not accessible by " + userInfo.getUserName());
@@ -438,7 +439,8 @@ public class CDOManager {
 			//CDOResourceNode resourceNode = view.getResourceNode(resourceName);
 			//log.info("ResourceNode: " + resourceNode);
 			ResourceResult resourceResult = new ResourceResult(resource, view);
-			log.info("getResource Retrieved: " + resource.getName());
+			Integer version = resource.cdoRevision(true) != null ? resource.cdoRevision(true).getVersion() : null;
+			log.info("getResource found: " + resource.getName() + ", version:" + version);
 
 			return resourceResult;
 		} catch (Exception e) {
@@ -536,7 +538,7 @@ public class CDOManager {
 	}
 	
 	public ResourceResult getPublicResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
-		if (resourceURL.startsWith(AccessController.PUBLIC_FOLDER) || resourceURL.startsWith(AccessController.EDR_PUBLIC_FOLDER_PATH )) {
+		if (resourceURL.startsWith(AccessController.PUBLIC_FOLDER_PATH) || resourceURL.startsWith(AccessController.EDR_PUBLIC_FOLDER_PATH )) {
 			try {
 				CDONet4jSession session = getSession(userInfo);
 				CDOView view = session.openView();
@@ -752,20 +754,20 @@ public class CDOManager {
 		depth = Math.max(0, Math.min(depth, 5)); // max 5 levels deep
 		CDONet4jSession session = getSession(userInfo);
 
-		CDOTransaction transaction = session.openTransaction();
+		CDOView view = session.openView();
 		EList<CDOResourceNode> nodes;
 		// WARNING: filters out the EDR folder from the root, to place it below the drive
 		if (path.equals("/") || path.equals("") || path.equals("j1_1")) {
-			nodes = transaction.getRootResource().getContents()
+			nodes = view.getRootResource().getContents()
 					.stream().filter(CDOResourceNode.class::isInstance)
 					.map(CDOResourceNode.class::cast)
 					.filter(rn -> !rn.getName().equals(AccessController.EDR_FOLDER_NAME))
 					.collect(Collectors.toCollection(BasicEList::new));
 		} else {		
-			CDOResourceNode resourceNode = transaction.getResourceNode(path);
+			CDOResourceNode resourceNode = view.getResourceNode(path);
 			CDOResourceFolder folder = null;
 			if (resourceNode instanceof CDOResourceFolder) {
-				folder = transaction.getResourceFolder(path);
+				folder = view.getResourceFolder(path);
 			} else {
 				folder = resourceNode.getFolder();
 			}
@@ -811,6 +813,7 @@ public class CDOManager {
 			}
 			
 		}
+		view.close();
 		return list;
 	}
 
@@ -824,8 +827,8 @@ public class CDOManager {
 		
 		HashMap<String, Object> map = new LinkedHashMap<>(20);
 		CDONet4jSession session = getSession(userInfo);
-		CDOTransaction transaction = session.openTransaction();
-		CDOResourceNode resourceNode = transaction.getResourceNode(fileName);
+		CDOView view = session.openView();
+		CDOResourceNode resourceNode = view.getResourceNode(fileName);
 		//System.out.println("ResourceNode: " + resourceNode);
 		
 				
@@ -837,7 +840,7 @@ public class CDOManager {
 			return map;
 		}
 		
-		CDOResource resource = transaction.getResource(fileName);
+		CDOResource resource = view.getResource(fileName);
 			
 		log.info("Retrieving content summary for: " + fileName);
 		map.put("fileName", resource.getName());
@@ -880,7 +883,19 @@ public class CDOManager {
 			if (feature instanceof EAttribute && rootObject.eIsSet(feature)) {
 				String name = feature.getName();
 				name = name.substring(0,1).toUpperCase() + name.substring(1);
-				map.put(rootObject.eClass().getName() + name, rootObject.eGet(feature));
+				Object value = rootObject.eGet(feature);
+				if (value instanceof List) { // unpack string lists e.g. tags in edd 
+					List<?> list = (List<?>) value;
+					if (list.size() > 0 && list.get(0) instanceof String) {
+						@SuppressWarnings("unchecked")
+						List<String> stringList = (List<String>)list;
+						value = stringList.stream().collect(Collectors.toList());
+					} else {
+						value = "[not supported]";
+					}
+					
+				}
+				map.put(rootObject.eClass().getName() + name, value);
 			}
 		}
 		map.put("esdlType", rootObject.eClass().getName());
@@ -892,6 +907,7 @@ public class CDOManager {
 		if (cached) {
 			map.put("size", ESDLUtil.bytesSizeToString(getCache().get(fileName).getXmlContent().length()));
 		}
+		view.close();
 		return map;
 	}
 	
@@ -1183,7 +1199,10 @@ public class CDOManager {
 			CDOTransaction transaction = session.openTransaction();
 			log.info("Ensuring initial groups for user " + userInfo.getUserName());
 			for (String group: userInfo.getReadWriteFolders()) {
-				transaction.getOrCreateResourceFolder(group);
+				CDOResourceFolder newFolder = transaction.getOrCreateResourceFolder(group);
+				if (newFolder.cdoState() == CDOState.NEW) {
+					log.info("ensureUserFoldersPresent: Created new Keycloak folder: " + newFolder.getPath() + " [username="+userInfo.getUserName()+"]");
+				}
 			}
 			
 			try {

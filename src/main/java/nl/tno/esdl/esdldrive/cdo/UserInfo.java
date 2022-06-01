@@ -75,13 +75,17 @@ public class UserInfo {
 	 */
 	private static final String ESDL_DRIVE_WRITE_CLAIM = "esdl-drive-write";
 	
+	/**
+	 * Lists default paths that are always accessible without authentication
+	 */
+	private final static Set<String> predefined_read_only_paths = Set.of(AccessController.EDR_PUBLIC_FOLDER_PATH);
 	
 	private final String userId;
 	private final String userName;
 	private final String fullName;
-	private final Set<String> keyCloackGroups;
+	private final Set<String> keyCloackGroups; // is used to check if it is a configured folder in keycloak, that users cannot remove
 	private final Set<String> writable_paths = new HashSet<String>();
-	private final Set<String> read_only_paths = new HashSet<String>();
+	private final Set<String> read_only_paths = new HashSet<String>(predefined_read_only_paths);
 	private final boolean admin;
 	private final boolean edrPublicWrite;
 	private final boolean publicUser;
@@ -120,6 +124,12 @@ public class UserInfo {
 			this.admin  = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_ADMIN_ROLE);
 			this.publicUser = false;
 			this.edrPublicWrite = userHasESDLDriveRole(jwtToken, ESDL_DRIVE_EDR_PUBLIC_WRITE_ROLE);
+			
+			// add personal folder to writable paths
+			writable_paths.add(AccessController.PERSONAL_FOLDER_PATH + this.userName);
+			// give logged in users write access to /Public/
+			writable_paths.add(AccessController.PUBLIC_FOLDER_PATH); 
+			
 			if (jwtToken.getClaim(USER_GROUP_PATH_CLAIM) != null && jwtToken.getClaim(USER_GROUP_PATH_CLAIM) instanceof List) {
 				writable_paths.addAll((List<String>)jwtToken.getClaim(USER_GROUP_PATH_CLAIM));
 				keyCloackGroups = Collections.unmodifiableSet(writable_paths);
@@ -153,10 +163,9 @@ public class UserInfo {
 				}
 			}
 			
-			// add personal folder to groups
-			writable_paths.add(AccessController.PERSONAL_FOLDER_PREFIX + this.userName);
+			
 			Iterator<String> iterator = writable_paths.iterator();
-			// clean up empty paths (with bad configuration)
+			// clean up empty paths (with bad configuration in keycloak)
 			while (iterator.hasNext()) {
 				String path = iterator.next();
 				if (path.isEmpty()) iterator.remove();
@@ -175,8 +184,9 @@ public class UserInfo {
 		this.fullName = "Public User";
 		this.publicUser = true;
 		this.edrPublicWrite = false;
-		// ESDL Drive public folder is writable by everybody, e.g. to share stuff. Add folder without trailing '/'
-		this.writable_paths.add(AccessController.DRIVE_PUBLIC_FOLDER);
+		// ESDL Drive public folder is writable by everybody, e.g. to share stuff if you have a login. Add folder without trailing '/'
+		//this.writable_paths.add(AccessController.PUBLIC_FOLDER_PATH); // means also read-access
+		this.read_only_paths.add(AccessController.PUBLIC_FOLDER_PATH);
 		this.keyCloackGroups = Collections.unmodifiableSet(writable_paths);
 	}
 	

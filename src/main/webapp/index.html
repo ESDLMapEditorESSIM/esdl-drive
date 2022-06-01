@@ -279,7 +279,14 @@ Manager:
 										for (let attr in d) {
 											let $tr = $('<tr>');
 											$tr.append($('<td>').html(attr));
-											$tr.append($('<td>').html(d[attr]));
+											let value = d[attr];
+											if (Array.isArray(value)) {
+												value = value.join(', ')
+											}
+											if (attr==='lastChanged') {
+                 								   value = new Date(d[attr]).toLocaleString();
+                							}
+											$tr.append($('<td>').html(value));
 											$t.append($tr);
 										}
 										$('#data .esdl').empty();

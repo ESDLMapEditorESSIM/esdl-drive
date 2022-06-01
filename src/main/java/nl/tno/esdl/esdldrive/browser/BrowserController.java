@@ -63,6 +63,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameters;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.eclipse.net4j.util.lifecycle.LifecycleException;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 import com.ibm.websphere.security.openidconnect.token.IdToken;
@@ -176,12 +177,12 @@ public class BrowserController {
         
         JsonStructure jsonObject = null;
         //System.out.println(securityContext.getUserPrincipal().getClass().getName());
-        log.info("\\-- Browse#" + operation + ": " + id + ", depth="+depth);
+        log.info("\\-- Browse." + operation + ": " + id + ", depth="+depth);
         switch(op) {
 		case get_node:
 			if (id.equals("#")) {
 				// ensure that all folders are present in the browser
-				cdoManager.ensureUserFoldersPresent(userInfo);
+				//cdoManager.ensureUserFoldersPresent(userInfo);
 				
 				JsonArray children = getFolderContents(userInfo, "/", depth);
 				
@@ -378,40 +379,45 @@ public class BrowserController {
     
     @SuppressWarnings("unchecked")
     public static void convertToActualType(JsonObjectBuilder contentBuilder, String key, Object value) {
-    	if (value == null) return;
-    	if (value instanceof String) {
-			contentBuilder.add(key, (String)value);
-		} else if (value instanceof Integer) {
-			contentBuilder.add(key, (Integer)value);
-		} else if (value instanceof Boolean) {
-			contentBuilder.add(key, (Boolean)value);
-		} else if (value instanceof Float) {
-			contentBuilder.add(key, (Float)value);
-		} else if (value instanceof Double) {
-			contentBuilder.add(key, (Double)value);
-		} else if (value instanceof Long) {
-			contentBuilder.add(key, (Long)value);
-		} else if (value instanceof BigInteger) {
-			contentBuilder.add(key, (BigInteger)value);
-		} else if (value instanceof BigDecimal) {
-			contentBuilder.add(key, (BigDecimal)value);
-		} else if (value instanceof Date) {
-			contentBuilder.add(key, ((Date)value).toInstant().toString());
-		} else if (value instanceof Enum) {
-			contentBuilder.add(key, ((Enum<?>)value).name());
-		} else if (value instanceof List<?>) {
-			List<?> list = (List<?>)value;
-			// only add strings here
-			if (list.size() > 0 && list.get(0) instanceof String) {
-				JsonArrayBuilder array = Json.createArrayBuilder();
-				for (String item: (List<String>)list) {
-					array.add(item);
+    	try {
+	    	if (value == null) return;
+	    	if (value instanceof String) {
+				contentBuilder.add(key, (String)value);
+			} else if (value instanceof Integer) {
+				contentBuilder.add(key, (Integer)value);
+			} else if (value instanceof Boolean) {
+				contentBuilder.add(key, (Boolean)value);
+			} else if (value instanceof Float) {
+				contentBuilder.add(key, (Float)value);
+			} else if (value instanceof Double) {
+				contentBuilder.add(key, (Double)value);
+			} else if (value instanceof Long) {
+				contentBuilder.add(key, (Long)value);
+			} else if (value instanceof BigInteger) {
+				contentBuilder.add(key, (BigInteger)value);
+			} else if (value instanceof BigDecimal) {
+				contentBuilder.add(key, (BigDecimal)value);
+			} else if (value instanceof Date) {
+				contentBuilder.add(key, ((Date)value).toInstant().toString());
+			} else if (value instanceof Enum) {
+				contentBuilder.add(key, ((Enum<?>)value).name());
+			} else if (value instanceof List<?>) {
+				List<?> list = (List<?>)value;
+				// only add strings here. Warning: this call might fetch new data from the database (as it is a list), so view should be open here.
+				if (list.size() > 0 && list.get(0) instanceof String) {
+					JsonArrayBuilder array = Json.createArrayBuilder();
+					for (String item: (List<String>)list) {
+						array.add(item);
+					}
+					contentBuilder.add(key, array);
 				}
-				contentBuilder.add(key, array);
+			} else {
+				log.info("Ignoring " + key + ", value: " + value);
 			}
-		} else {
-			log.info("Ignoring " + key + ", value: " + value);
-		}
+    	} catch (LifecycleException e) {
+    		// may occur when unpacking collections that are still in the db and not retrieved yet.
+    		// ignore adding here
+    	}
 		
 	}
 
