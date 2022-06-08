@@ -16,11 +16,18 @@
 
 package nl.tno.esdl.esdldrive.cdo.revisions;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.logging.Logger;
 
 import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
+import javax.json.Json;
+import javax.json.JsonArrayBuilder;
+import javax.json.JsonObject;
+import javax.json.JsonObjectBuilder;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -57,8 +64,8 @@ public class CDORevisionResource {
 	@Path("/{resourceURL:.+}")
 	@RolesAllowed("cdo_read")
 	@GET
-	@Produces(MediaType.TEXT_HTML)
-	@Operation(deprecated = true, description = "Lists the commits for this resource")
+	@Produces(MediaType.APPLICATION_JSON)
+	@Operation(description = "Lists the history and commits for a specific resource")
 	@Tag(ref = "ESDL Drive")
 	public Response listHistory(@PathParam("resourceURL") String resourceURL) {
 		if (!resourceURL.startsWith("/")) {
@@ -77,35 +84,46 @@ public class CDORevisionResource {
 		}
 		
 		
-		String ret = "";
 		log.info("listHistory() ResourceURL: " + resourceURL);
+		JsonObject jsonObject = null;
 		try {
 			ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL);
 			CDOResource cdoResource = resourceResult.getCDOResource();
 			CDOObjectHistory cdoHistory = cdoResource.cdoHistory();
 			//cdoHistory.getManager().addCommitInfoHandler(new TextCommitInfoLog(System.out));
+			
 			cdoHistory.triggerLoad();
 			while(cdoHistory.isLoading()) {
 				Thread.sleep(10);
 			}
+			
+			JsonObjectBuilder returnObject = Json.createObjectBuilder();
+			JsonArrayBuilder array = Json.createArrayBuilder();
+			returnObject.add("path", cdoResource.getPath());
+			returnObject.add("version", cdoResource.cdoRevision().getVersion());
+			
 			for (CDOCommitInfo info: cdoHistory.getElements()) {
-				System.out.println(info);
-				ret+= info + "<br/>";
+				//System.out.println(info);
+				JsonObjectBuilder commit = Json.createObjectBuilder();
+				commit
+					.add("user", info.getUserID()==null?"Unknown user":info.getUserID())
+					.add("message", info.getComment()==null?"No commit message":info.getComment())
+					.add("timestamp", info.getTimeStamp())
+					.add("local_time", LocalDateTime.ofInstant(Instant.ofEpochMilli(info.getTimeStamp()), ZoneId.systemDefault()).toString())
+					.add("branch", info.getBranch()==null?"":info.getBranch().getName());
+				array.add(commit);
 				
 			}
-			ret+= "<br>---<br>";
-			
-			
-			ret += "Revision version:" + cdoResource.cdoRevision().getVersion();
-			
+			returnObject.add("commits", array);
+			jsonObject = returnObject.build();
 			
 		} catch(Exception e) {
 			log.severe("Error: " + e);
 			e.printStackTrace();
-			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
+			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource:" + e.getMessage()).type(MediaType.TEXT_PLAIN).build();
 		}
 		
-		return Response.ok(ret).build();
+		return Response.ok(jsonObject).build();
 	}
 	
 }

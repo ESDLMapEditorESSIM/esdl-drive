@@ -51,6 +51,8 @@ public class AccessController {
 	
 	
 	public static DrivePermission getPermission(String path, UserInfo userInfo) {
+		if (userInfo.isAdmin()) return new DrivePermission(path, path, true, true);
+
 		// Iterate over all groups and their access
 		// Groups in the token provide read/write access
 		// Groups in readOnlyPath only provide read-only access unless the user has edr-public-write role 
@@ -97,6 +99,7 @@ public class AccessController {
 	 * @return True if the user has access, False otherwise
 	 */
 	public static boolean canAccess(String path, UserInfo userInfo) {
+		if (userInfo.isAdmin()) return true;
 		// path = /Users/ewoud.werkman@tno.nl/Vesta resultaten/vesta_output_warmtekeuze_per_buurt.esdl
 		// path = /Projects/Mondaine/Gooi en Vechtstreek/Test_energy_system.esdl
 		// path = /Organisations/TNO/MCS/Veluwe als PV park.esdl

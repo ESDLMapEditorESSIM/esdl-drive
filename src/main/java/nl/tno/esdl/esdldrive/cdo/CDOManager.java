@@ -1009,6 +1009,7 @@ public class CDOManager {
 		try {
 			CDOResourceNode resourceNode = transaction.getResourceNode(path);
 			transaction.setCommitComment("Deleting: " + resourceNode.getName());
+			log.info("Deleting: " + resourceNode.getPath());
 			resourceNode.delete(null);
 			if (resourceNode instanceof CDOResourceLeaf) {
 				getCache().remove(path);
@@ -1045,8 +1046,8 @@ public class CDOManager {
 			//CDOResourceFolder newFolder = transaction.getResourceFolder(newParentFolder);
 			//resourceNode.setFolder(newFolder);
 			transaction.setCommitComment("Moved " + fileName + " -> " + newParentFolder);
+			log.info(userInfo.getUserName() + "- Move node. Moved " + fileName + " -> " + newParentFolder); 
 			resourceNode.setPath(newParentFolder + "/" + fileName);
-			log.info("Move node. New path: " + resourceNode.getPath()); 
 			transaction.commit();
 			String newPath =  resourceNode.getPath();
 			// update cache
@@ -1128,8 +1129,8 @@ public class CDOManager {
 				String uniqueName = createUniqueName(transaction, fileName, newParentFolder);
 				CDOResource copyResource = transaction.createResource(newParentFolder + "/" + uniqueName);
 				copyResource.getContents().add(copy);
-				log.info("Copy: New path: " + copyResource.getPath());
-				transaction.setCommitComment("Copy " + fileName + " -> " + newParentFolder);
+				log.info(userInfo.getUserName() + "- Copy: " + path + " -> " + copyResource.getPath());
+				transaction.setCommitComment("Copy " + path + " -> " + newParentFolder);
 				transaction.commit();
 				newPath = copyResource.getPath();
 			}
