@@ -177,18 +177,17 @@ public class EDRResource {
 			return Response.ok(cachedModel).build();
 		}
 		try {
-			ResourceResult resourceResult = cdoManager.getPublicResource(userInfo, path);
-			CDOResource cdoResource = resourceResult.getCDOResource();
+			CDOResource cdoResource = cdoManager.getPublicResource(userInfo, path);
 			String xmlString = cdoManager.convertToXMLString(cdoResource);
 			//log.info("Retrieved: " + xmlString);
 			if (xmlString == null) {
 				return Response.status(Status.NOT_FOUND).entity("Failed to find the resource").type(MediaType.TEXT_PLAIN).build();
 			}
-			resourceResult.getView().getSession().close();
 			
 			// currently only cache the latest version - not revisions
 			cdoManager.setCache(path, xmlString, cdoResource);
-			Date lastModified = resourceResult.getLastModified();
+			Date lastModified = new Date(cdoResource.cdoRevision(true).getTimeStamp());
+			cdoResource.cdoView().close();
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
@@ -258,8 +257,7 @@ public class EDRResource {
 				//if (resourceNode instanceof CDOResourceFolder) {
 				//	// filter on folder
 				//}
-				ResourceResult publicResource = cdoManager.getPublicResource(userInfo, path);
-				CDOResource cdoResource = publicResource.getCDOResource();
+				CDOResource cdoResource = cdoManager.getPublicResource(userInfo, path);
 				EObject eObject = cdoResource.getContents().get(0);
 				if (eObject instanceof EnergyDataDescription) {
 					EnergyDataDescription energyDataDescription = (EnergyDataDescription) eObject;

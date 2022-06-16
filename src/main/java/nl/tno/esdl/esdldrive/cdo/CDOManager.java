@@ -381,7 +381,7 @@ public class CDOManager {
 	 * @return
 	 * @throws IOException
 	 */
-	public ResourceResult getResource(UserInfo userInfo, String resourceName) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
+	public CDOResource getResource(UserInfo userInfo, String resourceName) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
 		return getResource(userInfo, resourceName, null);
 	}
 	
@@ -392,7 +392,7 @@ public class CDOManager {
 	 * @return
 	 * @throws IOException
 	 */
-	public ResourceResult getResource(UserInfo userInfo, String resourceName, Long revision) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
+	public CDOResource getResource(UserInfo userInfo, String resourceName, Long revision) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
 		//log.info("Starting getResource transaction");
 		DrivePermission permission = AccessController.getPermission(resourceName, userInfo);
 		if (!(userInfo.isAdmin() || permission.isAccessible())) {
@@ -438,11 +438,10 @@ public class CDOManager {
 			//resource.cdoPrefetch(2); // Fetch full in steps of 2
 			//CDOResourceNode resourceNode = view.getResourceNode(resourceName);
 			//log.info("ResourceNode: " + resourceNode);
-			ResourceResult resourceResult = new ResourceResult(resource, view);
 			Integer version = resource.cdoRevision(true) != null ? resource.cdoRevision(true).getVersion() : null;
 			log.info("getResource found: " + resource.getName() + ", version:" + version);
 
-			return resourceResult;
+			return resource;
 		} catch (Exception e) {
 			//e.printStackTrace();
 			throw e;
@@ -537,16 +536,15 @@ public class CDOManager {
 		
 	}
 	
-	public ResourceResult getPublicResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
+	public CDOResource getPublicResource(UserInfo userInfo, String resourceURL) throws PermissionDeniedException, CDOResourceNodeNotFoundException {
 		if (resourceURL.startsWith(AccessController.PUBLIC_FOLDER_PATH) || resourceURL.startsWith(AccessController.EDR_PUBLIC_FOLDER_PATH )) {
 			try {
 				CDONet4jSession session = getSession(userInfo);
 				CDOView view = session.openView();
 				view.options().setRevisionPrefetchingPolicy(BIG_PREFETCHER);
 				CDOResource resource = view.getResource(resourceURL);
-				ResourceResult resourceResult = new ResourceResult(resource, view);
 				log.info("getPulicResource Retrieved: " + resource.getName());
-				return resourceResult;
+				return resource;
 			} catch (Exception e) {				
 				throw e;
 			}	

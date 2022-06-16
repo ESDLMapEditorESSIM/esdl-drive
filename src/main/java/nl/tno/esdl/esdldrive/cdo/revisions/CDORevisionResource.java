@@ -47,7 +47,6 @@ import com.ibm.websphere.security.openidconnect.PropagationHelper;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.DrivePermission;
-import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 
@@ -87,8 +86,7 @@ public class CDORevisionResource {
 		log.info("listHistory() ResourceURL: " + resourceURL);
 		JsonObject jsonObject = null;
 		try {
-			ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL);
-			CDOResource cdoResource = resourceResult.getCDOResource();
+			CDOResource cdoResource = cdoManager.getResource(userInfo, resourceURL);
 			CDOObjectHistory cdoHistory = cdoResource.cdoHistory();
 			//cdoHistory.getManager().addCommitInfoHandler(new TextCommitInfoLog(System.out));
 			
@@ -117,9 +115,12 @@ public class CDORevisionResource {
 			returnObject.add("commits", array);
 			jsonObject = returnObject.build();
 			
+			//resourceResult.close();
+			cdoResource.cdoView().close();
+			
 		} catch(Exception e) {
 			log.severe("Error: " + e);
-			e.printStackTrace();
+			//e.printStackTrace();
 			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource:" + e.getMessage()).type(MediaType.TEXT_PLAIN).build();
 		}
 		

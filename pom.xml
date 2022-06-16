@@ -60,13 +60,13 @@
 		<dependency>
 			<groupId>org.eclipselabs</groupId>
 			<artifactId>cdo</artifactId>
-			<version>4.14.1</version>
+			<version>4.19.1</version>
 			<type>pom</type>
 		</dependency>
 		<dependency>
 			<groupId>org.eclipselabs</groupId>
 			<artifactId>net4j</artifactId>
-			<version>4.14.1</version>
+			<version>4.19.1</version>
 			<type>pom</type>
 		</dependency>
 		<dependency>
@@ -91,6 +91,8 @@
 			<artifactId>org.eclipse.emf.compare</artifactId>
 			<version>3.5.3.202005260905</version>
 		</dependency>
+		
+		<!-- for EMF Compare, check for update in july 2022 to get rid of this log4j dependency --> 
 		<dependency>
 			<groupId>log4j</groupId>
 			<artifactId>log4j</artifactId>
@@ -146,7 +148,7 @@
 				<plugin>
 					<groupId>io.openliberty.tools</groupId>
 					<artifactId>liberty-maven-plugin</artifactId>
-					<version>3.3.4</version>
+					<version>3.5.2</version>
 				</plugin>
 			</plugins>
 		</pluginManagement>

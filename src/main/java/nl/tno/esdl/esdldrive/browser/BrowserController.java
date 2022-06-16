@@ -328,7 +328,8 @@ public class BrowserController {
 		case get_revisions:
 			try {
 				TreeSet<CDOCommitInfo> commits = cdoManager.getRevisions(userInfo, id);
-				CDOResource cdoResource = cdoManager.getResource(userInfo, id).getCDOResource();
+				CDOResource cdoResource = cdoManager.getResource(userInfo, id);
+				String name = cdoResource.getName();
 				
 				JsonArrayBuilder array = Json.createArrayBuilder();
 				for (CDOCommitInfo info : commits) {
@@ -346,7 +347,8 @@ public class BrowserController {
 					}
 					array.add(commit.build());
 				}
-				jsonObject = Json.createObjectBuilder().add("commits", array).add("path", id).add("name", cdoResource.getName()).build();
+				jsonObject = Json.createObjectBuilder().add("commits", array).add("path", id).add("name", name).build();
+				// TODO: close view
 			} catch (PermissionDeniedException e) {
 				return Response.serverError().status(Status.FORBIDDEN).entity(generateError("Access denied")).build();
 			} catch (CDOResourceNodeNotFoundException e) {

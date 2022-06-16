@@ -144,8 +144,7 @@ public class CDOServerResource {
 			return Response.ok(cachedModel).build();
 		}
 		try {
-			ResourceResult resourceResult = cdoManager.getResource(userInfo, resourceURL, revision);
-			CDOResource cdoResource = resourceResult.getCDOResource();
+			CDOResource cdoResource = cdoManager.getResource(userInfo, resourceURL, revision);
 			CDOUtil.setIntrinsicIDToEObjectMap(cdoResource, new HashMap<String, EObject>());
 			String xmlString = cdoManager.convertToXMLString(cdoResource);
 			//log.info("Retrieved: " + xmlString);
@@ -156,8 +155,8 @@ public class CDOServerResource {
 				// currently only cache the latest version
 				cdoManager.setCache(resourceURL,xmlString, cdoResource);
 			}
-			Date lastModified = resourceResult.getLastModified();
-			resourceResult.close();
+			Date lastModified = new Date(cdoResource.cdoRevision(true).getTimeStamp());
+			cdoResource.cdoView().close();
 			return Response.ok(xmlString).lastModified(lastModified).build();
 		} catch (Exception e) {
 			if (!(e instanceof CDOResourceNodeNotFoundException) && !(e instanceof InvalidURIException)) { // ignore these errors
@@ -196,8 +195,7 @@ public class CDOServerResource {
 			return Response.ok(cachedModel).build();
 		}
 		try {
-			ResourceResult resourceResult = cdoManager.getPublicResource(userInfo, resourceURL);
-			CDOResource cdoResource = resourceResult.getCDOResource();
+			CDOResource cdoResource = cdoManager.getPublicResource(userInfo, resourceURL);
 			String result = null;
 			MediaType contentType = MediaType.APPLICATION_XML_TYPE;
 			if (jsonContentType) {
@@ -209,8 +207,8 @@ public class CDOServerResource {
 				if (result != null && !result.isEmpty())
 					cdoManager.setCache(resourceURL, result, cdoResource);
 			}
-			Date lastModified = resourceResult.getLastModified();
-			resourceResult.getView().getSession().close();
+			Date lastModified = new Date(cdoResource.cdoRevision(true).getTimeStamp());
+			cdoResource.cdoView().close();
 			return Response.ok(result).type(contentType).lastModified(lastModified).build();
 		} catch (CDOResourceNodeNotFoundException | InvalidURIException e ) {
 			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
