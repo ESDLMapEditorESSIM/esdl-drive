@@ -8,11 +8,13 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.TreeSet;
 
 import javax.json.bind.annotation.JsonbProperty;
 import javax.json.bind.annotation.JsonbPropertyOrder;
 
 import org.eclipse.emf.cdo.CDOObject;
+import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.revision.CDORevision;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.ecore.EObject;
@@ -55,6 +57,8 @@ public class EnergyDataDescriptionJSON {
 	private long lastChanged;
 	@Schema(description="Timestamp of when the file was first published (generated)", required=false, readOnly=true)
 	private long publicationDate;
+	@Schema(description="Describes the commit history of this EDD", required=false, readOnly=true)
+	private List<HistoryJSON> history;
 	
 	
 	public EnergyDataDescriptionJSON() {
@@ -111,10 +115,10 @@ public class EnergyDataDescriptionJSON {
 	
 	
 	public static  EnergyDataDescriptionJSON fromEDD(EnergyDataDescription edd) {
-		return fromEDD(edd, true, true);
+		return fromEDD(edd, true, true, true);
 	}
 	
-	public static EnergyDataDescriptionJSON fromEDD(EnergyDataDescription edd, boolean addImageData, boolean addESDL) {
+	public static EnergyDataDescriptionJSON fromEDD(EnergyDataDescription edd, boolean addImageData, boolean addESDL, boolean addHistory) {
 		EnergyDataDescriptionJSON json = new EnergyDataDescriptionJSON();
 		json.setDescription(edd.getDescription());
 		json.setTitle(edd.getTitle());
@@ -167,12 +171,34 @@ public class EnergyDataDescriptionJSON {
 		
 		if (edd.cdoDirectResource() != null) {
 			CDOResource resource = edd.cdoDirectResource();
-			// load history to find creation time of resource
+			// load history to find creation time of resource and history
+			TreeSet<CDOCommitInfo> allCommits = new TreeSet<CDOCommitInfo>((o1, o2) -> -Long.compare(o1.getTimeStamp(), o2.getTimeStamp()));
 			resource.cdoHistory().triggerLoad();
+			edd.cdoHistory().triggerLoad();
 			while (resource.cdoHistory().isLoading()) {
 				resource.cdoHistory().waitWhileLoading(10);
 			}
+			while (edd.cdoHistory().isLoading()) {
+				edd.cdoHistory().waitWhileLoading(10);
+			}
+			
+			allCommits.addAll(List.of(resource.cdoHistory().getElements()));
+			allCommits.addAll(List.of(edd.cdoHistory().getElements()));
 			json.setPublicationDate(resource.cdoHistory().getLastElement().getTimeStamp());
+			if (allCommits.size() > 0) {
+				json.setHistory(new ArrayList<HistoryJSON>());
+				for(CDOCommitInfo t: allCommits) {
+					HistoryJSON historyJson = new HistoryJSON();
+					historyJson.setCommitMessage(t.getComment());
+					historyJson.setUser(t.getUserID());
+					historyJson.setTimestamp(t.getTimeStamp());
+					// below: this is an expensive operation, and disabled for now
+//					if (!t.isInitialCommit()) {
+//						historyJson.setNumberOfChanges(t.getAffectedIDs().size());
+//					}
+					json.getHistory().add(historyJson);
+				}
+			}
 		}
 		
 		
@@ -267,6 +293,15 @@ public class EnergyDataDescriptionJSON {
 		this.publicationDate = publicationDate;
 	}
 
+	public List<HistoryJSON> getHistory() {
+		return history;
+	}
+
+	public void setHistory(List<HistoryJSON> history) {
+		this.history = history;
+	}
+
+	
 	
 	
 }

@@ -62,7 +62,6 @@ import nl.tno.esdl.esdldrive.browser.BrowserController.BrowseOperation;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
-import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
@@ -241,6 +240,7 @@ public class EDRResource {
 			@QueryParam("esdlType") String esdlType,
 			@QueryParam("addImageData") @DefaultValue("false") final Boolean addImageData,
 			@QueryParam("addESDL") @DefaultValue("false") final Boolean addESDL,
+			@QueryParam("addHistory") @DefaultValue("false") final Boolean addHistory,
 			@QueryParam("maxResults") @DefaultValue("25") int maxResults, 
 			@QueryParam("offset") @DefaultValue("0") int offset,
 			@QueryParam("order") @DefaultValue("DEFAULT") SortOrder order,
@@ -261,7 +261,7 @@ public class EDRResource {
 				EObject eObject = cdoResource.getContents().get(0);
 				if (eObject instanceof EnergyDataDescription) {
 					EnergyDataDescription energyDataDescription = (EnergyDataDescription) eObject;
-					EnergyDataDescriptionJSON dataDescriptionJSON = EnergyDataDescriptionJSON.fromEDD(energyDataDescription, addImageData, addESDL);
+					EnergyDataDescriptionJSON dataDescriptionJSON = EnergyDataDescriptionJSON.fromEDD(energyDataDescription, addImageData, addESDL, addHistory);
 					return Response.ok(Collections.singletonList(dataDescriptionJSON)).build();
 				} else {
 					return Response.serverError().entity(getErrorAsJson("Not an EnergyDataDescription")).build();
@@ -288,7 +288,7 @@ public class EDRResource {
 			try {
 				List<EnergyDataDescription> queryEDD = cdoManager.oclQueryEDD(userInfo, filter);
 				//System.out.println(queryEDD);
-				List<EnergyDataDescriptionJSON> result = queryEDD.stream().map(edd -> EnergyDataDescriptionJSON.fromEDD(edd, addImageData, addESDL)).collect(Collectors.toList());
+				List<EnergyDataDescriptionJSON> result = queryEDD.stream().map(edd -> EnergyDataDescriptionJSON.fromEDD(edd, addImageData, addESDL, addHistory)).collect(Collectors.toList());
 				return Response.ok(result).build();
 			} catch (Exception e) {
 				return Response.serverError().entity("Error querying database: " + e.getMessage()).build();
