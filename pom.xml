@@ -161,7 +161,7 @@
 						<esdl.version>${esdl.version}</esdl.version>
 						<esdldrive.version>${project.version}</esdldrive.version>
 					</bootstrapProperties>
-					<serverStartTimeout>60</serverStartTimeout>
+					<serverStartTimeout>180</serverStartTimeout>
 				</configuration>
 			</plugin>
 		</plugins>

@@ -130,14 +130,17 @@ public class EnergyDataDescriptionJSON {
 		if (esdlObject != null) {
 			json.setEsdlType(esdlObject.eClass().getName());
 			if (esdlObject instanceof CDOObject) {
-				// TODO check if this works
+				// TODO check if this works: no, so only set internal version
 				CDOObject cdoObject = (CDOObject) esdlObject;
 				CDORevision cdoRevision = cdoObject.cdoRevision(true);
 				if (cdoRevision != null) {					
 					json.setLastChanged(cdoRevision.getTimeStamp());
-					if (json.getVersion() != null) {
-						json.setVersion(json.getVersion() + "-R" + cdoRevision.getVersion());
-					} else {
+//					if (json.getVersion() != null) {
+//						json.setVersion(json.getVersion()); // + "-R" + cdoRevision.getVersion());
+//					} else {
+//						json.setVersion(String.valueOf(cdoRevision.getVersion()));
+//					}
+					if (json.getVersion() == null || json.getVersion().isBlank()) {
 						json.setVersion(String.valueOf(cdoRevision.getVersion()));
 					}
 				} else {

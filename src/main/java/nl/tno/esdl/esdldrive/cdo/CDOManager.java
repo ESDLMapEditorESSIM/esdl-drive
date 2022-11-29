@@ -182,6 +182,8 @@ public class CDOManager {
 		emfCompare = EMFCompare.builder().build();
 		emfCompareMergerRegistry = IMerger.RegistryImpl.createStandaloneInstance();
 		emfCompareMonitor = new BasicMonitor(); //new BasicMonitor.Printing(System.out);
+		
+		initModels();
 	}
 	
 	public CDONet4jSession getSession(UserInfo userInfo) {
@@ -317,7 +319,7 @@ public class CDOManager {
 		} catch (Exception e) {
 			// EMFCompare throws NullPointerException when there are errors in the XML
 			if (e instanceof CDOResourceNodeNotFoundException || e instanceof InvalidURIException) {
-				log.log(Level.INFO, "New file using full save: ", e.getMessage());
+				log.log(Level.INFO, "Creating new file using full save: " + resourceName);
 				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
 			} else if (e instanceof NullPointerException) {
 				log.log(Level.SEVERE, "Error saving by merging, trying full save: ", e);
@@ -611,19 +613,42 @@ public class CDOManager {
 			}
 		}
 	}
+	
+	
+	private void initModels() {
+		log.info("Registering ESDL and EDR models.");
+		// register EDR model
+		EddFactory.eINSTANCE.eClass();
+		// Register ESDL
+		EsdlFactory.eINSTANCE.eClass();
+		EPackage.Registry ePackageRegistry = EPackage.Registry.INSTANCE;
+		if (ePackageRegistry.get(EsdlPackage.eNS_URI) == null) {
+			ePackageRegistry.put(EsdlPackage.eNS_URI, EsdlPackage.eINSTANCE);
+			ePackageRegistry.put(EddPackage.eNS_URI, EddPackage.eINSTANCE);
+
+			// register esdl resources with extension .esdl
+			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
+			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edd", new XMLResourceFactoryImpl()); 
+			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
+		}
+		
+	}
 
 	//@Initialized(ApplicationScoped.class)
 	@PostConstruct
 	private void setUpCDO() {
-		System.out.println("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
-		log.info("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
+		initModels();
+		
 		try {
+			
 			// Enable logging and tracing
-
 			OMPlatform.INSTANCE.setDebugging(true);
 			OMPlatform.INSTANCE.addLogHandler(PrintLogHandler.CONSOLE);
 			OMPlatform.INSTANCE.addTraceHandler(PrintTraceHandler.CONSOLE);
 			//OMPlatform.INSTANCE.isProperty("org.eclipse.emf.cdo.CDOResourceNode.singleExtensions");
+
+			System.out.println("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
+			log.info("Setting up CDO connection to " + cdoServerHostName + "/" + cdoRepositoryName);
 
 			container = ContainerUtil.createContainer();
 			Net4jUtil.prepareContainer(container); // Register Net4j factories
@@ -645,24 +670,7 @@ public class CDOManager {
 //			configuration.addListener(cdoEventListener);
 
 			
-			log.info("Registering ESDL and EDR models.");
-			// register EDR model
-			EddFactory.eINSTANCE.eClass();
-			// Register ESDL
-			// make sure ESDL is loaded here.
-			EsdlFactory.eINSTANCE.eClass();
-			EPackage.Registry ePackageRegistry = EPackage.Registry.INSTANCE;
-			ePackageRegistry.put(EsdlPackage.eNS_URI, EsdlPackage.eINSTANCE);
-			ePackageRegistry.put(EddPackage.eNS_URI, EddPackage.eINSTANCE);
-			// register esdl resources with extension .esdl
-			
-			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("esdl", new EsdlResourceFactoryImpl()); 
-			Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("edd", new XMLResourceFactoryImpl()); 
-			//Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("*", new EsdlResourceFactoryImpl()); 
-//			CDOSession session = configuration.openNet4jSession();
-//			session.getPackageRegistry().putEPackage(EsdlPackage.eINSTANCE);
-//			session.getPackageRegistry().putEPackage(EDRPackage.eINSTANCE); 
-//			session.close();
+
 			
 			new SessionDetailsManager(sessionMap);
 		} catch (Exception e) {

@@ -333,7 +333,7 @@ public class EDRResource {
 		} catch (InvalidLoginInformationException e) {
 			return Response.status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
-		System.out.println("EDR upload: " + resourceURL);
+		log.info("EDR upload: " + resourceURL + " by " + userInfo.getUserName());
 		
 		try {
 			EnergyDataDescription edd = eddJson.toEDD();
