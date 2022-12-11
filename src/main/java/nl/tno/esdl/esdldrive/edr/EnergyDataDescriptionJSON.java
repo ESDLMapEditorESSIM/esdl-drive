@@ -23,9 +23,13 @@ import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
+import edd.Annotation;
+import edd.CategoryAnnotation;
 import edd.EddFactory;
 import edd.EnergyDataDescription;
 import edd.Image;
+import edd.ObjectAnnotation;
+import nl.tno.esdl.esdldrive.util.ESDLUtil;
 
 
 @JsonbPropertyOrder({"id","title","description","version","tags","image", "esdlType", "esdl"})
@@ -44,6 +48,10 @@ public class EnergyDataDescriptionJSON {
 	private List<String> tags;
 	@Schema(description="The version of this description, will probably be generated in the future", required=false)
 	private String version;
+	@Schema(description="The author of this data in the form of 'Full Name <email@domain.ext>", required=false)
+	private String author;
+	@Schema(description="The year for which this data is valid, e.g. 2030, 2050. Not setting this value or 0 means no year has been specified", required=false)
+	private Integer validityYear;
 	@Schema(description="The URL to a grafana dashboard when timeseries or profiles are described", required=false)
 	private String graphURL;
 	@JsonbProperty(nillable = false)
@@ -59,6 +67,8 @@ public class EnergyDataDescriptionJSON {
 	private long publicationDate;
 	@Schema(description="Describes the commit history of this EDD", required=false, readOnly=true)
 	private List<HistoryJSON> history;
+	@Schema(description="Adds extra explanation to the ESDL defined in the EDD", required=false, readOnly=false)
+	private List<AnnotationJSON> annotation;
 	
 	
 	public EnergyDataDescriptionJSON() {
@@ -77,6 +87,8 @@ public class EnergyDataDescriptionJSON {
 		edd.setDescription(description);
 		edd.setGraphURL(graphURL);
 		edd.setVersion(version);
+		edd.setAuthor(author);
+		edd.setValidityYear(validityYear);
 		
 		if (tags != null && !tags.isEmpty()) {
 			edd.getTags().addAll(tags);
@@ -109,6 +121,23 @@ public class EnergyDataDescriptionJSON {
 			edrImage.setImageData(imageBytes);
 			edd.setImage(edrImage);
 		}
+		
+		if (getAnnotation() != null && getAnnotation().size() > 0) {
+			for(AnnotationJSON a: getAnnotation()) {
+				if (a.getObjectId() != null && !a.getObjectId().isBlank()) {
+					ObjectAnnotation objectAnnotation = EddFactory.eINSTANCE.createObjectAnnotation();
+					objectAnnotation.setExplanation(a.getExplanation());
+					objectAnnotation.setAbout(ESDLUtil.findById(edd, a.getObjectId()));
+					objectAnnotation.setAboutAttribute(a.getAttributeName());
+					edd.getAnnotation().add(objectAnnotation);
+				} else if (a.getType() != null) {
+					CategoryAnnotation categoryAnnotation = EddFactory.eINSTANCE.createCategoryAnnotation();
+					categoryAnnotation.setExplanation(a.getExplanation());
+					categoryAnnotation.setType(a.getType());
+					edd.getAnnotation().add(categoryAnnotation);
+				}
+			}
+		}
 				
 		return edd;
 	}
@@ -124,6 +153,8 @@ public class EnergyDataDescriptionJSON {
 		json.setTitle(edd.getTitle());
 		json.setGraphURL(edd.getGraphURL());
 		json.setVersion(edd.getVersion());
+		json.setAuthor(edd.getAuthor());
+		json.setValidityYear(edd.getValidityYear());
 		json.setId(edd.cdoDirectResource().getPath());
 		json.setTags(new ArrayList<String>(edd.getTags()));
 		EObject esdlObject = edd.getEsdl();
@@ -172,7 +203,7 @@ public class EnergyDataDescriptionJSON {
 			}
 		}
 		
-		if (edd.cdoDirectResource() != null) {
+		if (addHistory && edd.cdoDirectResource() != null) {
 			CDOResource resource = edd.cdoDirectResource();
 			// load history to find creation time of resource and history
 			TreeSet<CDOCommitInfo> allCommits = new TreeSet<CDOCommitInfo>((o1, o2) -> -Long.compare(o1.getTimeStamp(), o2.getTimeStamp()));
@@ -201,6 +232,24 @@ public class EnergyDataDescriptionJSON {
 //					}
 					json.getHistory().add(historyJson);
 				}
+			}
+		}
+		
+		if (edd.getAnnotation().size() > 0) {
+			json.setAnnotation(new ArrayList<AnnotationJSON>());
+			for (Annotation a: edd.getAnnotation()) {
+				AnnotationJSON aJson = new AnnotationJSON();
+				if (a instanceof ObjectAnnotation) {
+					ObjectAnnotation objectAnnotation = (ObjectAnnotation) a;
+					aJson.setExplanation(objectAnnotation.getExplanation());
+					aJson.setObjectId(EcoreUtil.getID(objectAnnotation.getAbout()));
+					aJson.setAttributeName(objectAnnotation.getAboutAttribute());
+				} else if (a instanceof CategoryAnnotation) {
+					CategoryAnnotation categoryAnnotation = (CategoryAnnotation) a;
+					aJson.setExplanation(categoryAnnotation.getExplanation());
+					aJson.setType(categoryAnnotation.getType());
+				}
+				json.getAnnotation().add(aJson);
 			}
 		}
 		
@@ -304,7 +353,28 @@ public class EnergyDataDescriptionJSON {
 		this.history = history;
 	}
 
-	
-	
+	public String getAuthor() {
+		return author;
+	}
+
+	public void setAuthor(String author) {
+		this.author = author;
+	}
+
+	public Integer getValidityYear() {
+		return validityYear;
+	}
+
+	public void setValidityYear(Integer validityYear) {
+		this.validityYear = validityYear;
+	}
+
+	public List<AnnotationJSON> getAnnotation() {
+		return annotation;
+	}
+
+	public void setAnnotation(List<AnnotationJSON> annotation) {
+		this.annotation = annotation;
+	}
 	
 }

@@ -4,9 +4,11 @@ import java.text.StringCharacterIterator;
 import java.util.stream.Collectors;
 
 import org.eclipse.emf.common.util.EList;
+import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.util.EcoreUtil;
 
 public class ESDLUtil {
 
@@ -69,6 +71,27 @@ public class ESDLUtil {
 	        ci.next();
 	    }
 	    return String.format("%.1f %cB", bytes / 1000.0, ci.current());
+	}
+	
+	
+	/**
+	 * Finds an id of an EObject contained in rootObject by iterating though its eAllContents and searching for that id.<br>
+	 * If the rootObject contains a lot of contents, this approach is quite slow.
+	 * 
+	 * @param rootObject contents of this object is searched
+	 * @param id id to search for
+	 * @return the EObject belonging to that id, or null if not found
+	 */
+	public static EObject findById(EObject rootObject, String id) {
+		TreeIterator<EObject> eAllContents = rootObject.eAllContents();
+		while (eAllContents.hasNext()) {
+			EObject e = eAllContents.next();
+			String objectId = EcoreUtil.getID(e);
+			if(objectId != null && objectId.equals(id)) {
+				return e;
+			}
+		};
+		return null;
 	}
 
 }

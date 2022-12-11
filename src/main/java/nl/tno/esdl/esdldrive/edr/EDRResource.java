@@ -240,7 +240,7 @@ public class EDRResource {
 			@QueryParam("esdlType") String esdlType,
 			@QueryParam("addImageData") @DefaultValue("false") final Boolean addImageData,
 			@QueryParam("addESDL") @DefaultValue("false") final Boolean addESDL,
-			@QueryParam("addHistory") @DefaultValue("false") final Boolean addHistory,
+			@QueryParam("addHistory") @DefaultValue("true") final Boolean addHistory,
 			@QueryParam("maxResults") @DefaultValue("25") int maxResults, 
 			@QueryParam("offset") @DefaultValue("0") int offset,
 			@QueryParam("order") @DefaultValue("DEFAULT") SortOrder order,
