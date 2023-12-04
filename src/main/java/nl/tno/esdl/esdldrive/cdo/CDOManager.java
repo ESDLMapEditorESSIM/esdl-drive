@@ -616,13 +616,13 @@ public class CDOManager {
 	
 	
 	private void initModels() {
-		log.info("Registering ESDL and EDR models.");
 		// register EDR model
 		EddFactory.eINSTANCE.eClass();
 		// Register ESDL
 		EsdlFactory.eINSTANCE.eClass();
 		EPackage.Registry ePackageRegistry = EPackage.Registry.INSTANCE;
 		if (ePackageRegistry.get(EsdlPackage.eNS_URI) == null) {
+			log.info("Registering ESDL and EDR models.");
 			ePackageRegistry.put(EsdlPackage.eNS_URI, EsdlPackage.eINSTANCE);
 			ePackageRegistry.put(EddPackage.eNS_URI, EddPackage.eINSTANCE);
 
