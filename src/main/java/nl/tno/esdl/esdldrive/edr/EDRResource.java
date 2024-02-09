@@ -37,9 +37,13 @@ import javax.ws.rs.core.SecurityContext;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
+import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
+import org.eclipse.emf.cdo.eresource.CDOResourceNode;
+import org.eclipse.emf.cdo.eresource.EresourcePackage;
 import org.eclipse.emf.cdo.util.CommitException;
 import org.eclipse.emf.cdo.util.ConcurrentAccessException;
 import org.eclipse.emf.common.util.URI;
+import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
@@ -56,7 +60,9 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
+import edd.EddPackage;
 import edd.EnergyDataDescription;
+import esdl.EsdlPackage;
 import nl.tno.esdl.esdldrive.browser.BrowserController;
 import nl.tno.esdl.esdldrive.browser.BrowserController.BrowseOperation;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
@@ -216,9 +222,9 @@ public class EDRResource {
 	@Operation(summary="Query EnergyData Descriptions in the database")
 	@Tag(ref = "EDR")
 	@Parameters({
-		@Parameter(name = "path", in = ParameterIn.QUERY, description = "Retrieve a specific EDD based on the path of the description (id field), all filters are ignored"),
+		@Parameter(name = "path", in = ParameterIn.QUERY, description = "Retrieve a specific EDD based on the path of the description (id field), or filter on a specific path in the EDR (e.g. /edr/Public/Assets)"),
 		@Parameter(name = "title", in = ParameterIn.QUERY, description = "Filter based on title"),
-		@Parameter(name = "tag", in = ParameterIn.QUERY, description = "Filter based on a tag"),
+		@Parameter(name = "tag", in = ParameterIn.QUERY, description = "Filter based on tags, multiple tags can be specified for filtering using boolean OR (e.g. a union of EDDs that have these tags)"),
 		@Parameter(name = "esdlType", in = ParameterIn.QUERY, description = "Filter based on the ESDL type contained in the Energy Data Description"),
 		@Parameter(name = "addImageData", in = ParameterIn.QUERY, description = "Add image data to the result, if available", schema = @Schema(defaultValue = "false", implementation = boolean.class)),
 		@Parameter(name = "addESDL", in = ParameterIn.QUERY, description = "Add ESDL content to the result", schema = @Schema(defaultValue = "false", implementation = boolean.class)),
@@ -229,14 +235,13 @@ public class EDRResource {
 		@Parameter(name = "attributeValue", in = ParameterIn.QUERY, description = "Filter based on a specific attributeName's value of the esdlType object in the Energy Data Description. Requires esdlType and attributeName to be set too. E.g. esdlType = Pipe, attributeName=diameter and attributeValue=esdl::PipeDiameterEnum::DN100"),
 	})
 	@APIResponses({
-		@APIResponse(description = "Returns zero or more EnergyDataDescriptions in an array", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = EnergyDataDescriptionJSON.class)))
+		@APIResponse(description = "Returns zero or more EnergyDataDescriptions in an array", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = EnergyDataDescriptionJSON[].class)))
 	})
-	
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response query(
 			@QueryParam("path") String path, 
 			@QueryParam("title") String title, 
-			@QueryParam("tag") String tag,  
+			@QueryParam("tag") List<String> tag,  
 			@QueryParam("esdlType") String esdlType,
 			@QueryParam("addImageData") @DefaultValue("false") final Boolean addImageData,
 			@QueryParam("addESDL") @DefaultValue("false") final Boolean addESDL,
@@ -247,53 +252,149 @@ public class EDRResource {
 			@QueryParam("attributeName") String attributeName,
 			@QueryParam("attributeValue") String attributeValue) {
 		PublicUserInfo userInfo = new PublicUserInfo();
+		HashMap<String, String> filter = new HashMap<>();
 		
 		if (path != null && !path.isEmpty()) {
 			path = URI.decode(path);
 			if (!path.startsWith("/")) path = "/" + path;
 			try {
 				// TODO add ability to filter on path (add path to filter Map)
-				//CDOResourceNode resourceNode = cdoManager.getResourceNode(userInfo, path);
-				//if (resourceNode instanceof CDOResourceFolder) {
-				//	// filter on folder
-				//}
-				CDOResource cdoResource = cdoManager.getPublicResource(userInfo, path);
-				EObject eObject = cdoResource.getContents().get(0);
-				if (eObject instanceof EnergyDataDescription) {
-					EnergyDataDescription energyDataDescription = (EnergyDataDescription) eObject;
-					EnergyDataDescriptionJSON dataDescriptionJSON = EnergyDataDescriptionJSON.fromEDD(energyDataDescription, addImageData, addESDL, addHistory);
-					return Response.ok(Collections.singletonList(dataDescriptionJSON)).build();
-				} else {
-					return Response.serverError().entity(getErrorAsJson("Not an EnergyDataDescription")).build();
+				CDOResourceNode resourceNode = cdoManager.getResourceNode(userInfo, path);
+				if (resourceNode instanceof CDOResourceFolder) {
+					// filter on folder
+					boolean canAccess = AccessController.canAccess(path, userInfo);
+					if (canAccess) {
+						filter.put("path", path);
+					} else {
+						throw new PermissionDeniedException("Cannot access path " + path);
+					}
+				} else if (resourceNode instanceof CDOResource) {
+	 				CDOResource cdoResource = cdoManager.getPublicResource(userInfo, path);
+					EObject eObject = cdoResource.getContents().get(0);
+					if (eObject instanceof EnergyDataDescription) {
+						EnergyDataDescription energyDataDescription = (EnergyDataDescription) eObject;
+						EnergyDataDescriptionJSON dataDescriptionJSON = EnergyDataDescriptionJSON.fromEDD(energyDataDescription, addImageData, addESDL, addHistory);
+						return Response.ok(Collections.singletonList(dataDescriptionJSON)).build();
+					} else {
+						return Response.serverError().entity(getErrorAsJson("Not an EnergyDataDescription")).build();
+					}
 				}
-				
 			} catch (PermissionDeniedException e) {
-				log.severe(e.getMessage());
-				e.printStackTrace();
+				log.info(userInfo.getUserName() + ": " + e.getMessage());
+				//e.printStackTrace();
+				throw e;
+			} catch (CDOResourceNodeNotFoundException e) {
+				return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Cannot find path")).build();
 			}
-			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Cannot get EDD from path " + path)).build();
-		} else {
-			
-			HashMap<String, String> filter = new HashMap<>();
-			if (title != null && !title.isEmpty()) filter.put("title", title);
-			if (tag != null && !tag.isEmpty()) filter.put("tags", tag);
-			if (attributeName != null && !attributeName.isEmpty()) filter.put("attributeName", attributeName);
-			if (attributeValue != null && !attributeValue.isEmpty()) filter.put("attributeValue", attributeValue);
-			if (maxResults >= 0) filter.put("limit", String.valueOf(maxResults));
-			if (offset > 0) filter.put("offset", String.valueOf(offset));
-			if (order != null && order != SortOrder.DEFAULT) filter.put("order", order.name());
-			if (esdlType != null && !esdlType.isEmpty()) filter.put("esdlType", esdlType);
-			//System.out.println("filter: " + filter);
-			//List<EnergyDataDescription> queryEDD = cdoManager.queryEDD(userInfo, filter);
-			try {
-				List<EnergyDataDescription> queryEDD = cdoManager.oclQueryEDD(userInfo, filter);
-				//System.out.println(queryEDD);
-				List<EnergyDataDescriptionJSON> result = queryEDD.stream().map(edd -> EnergyDataDescriptionJSON.fromEDD(edd, addImageData, addESDL, addHistory)).collect(Collectors.toList());
-				return Response.ok(result).build();
-			} catch (Exception e) {
-				return Response.serverError().entity("Error querying database: " + e.getMessage()).build();
-			}
+			//return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Cannot get EDD from path " + path)).build();
 		}
+			
+			
+		if (title != null && !title.isEmpty()) filter.put("title", title);
+		if (tag != null && !tag.isEmpty()) filter.put("tags", String.join(",", tag));
+		if (attributeName != null && !attributeName.isEmpty()) filter.put("attributeName", attributeName);
+		if (attributeValue != null && !attributeValue.isEmpty()) filter.put("attributeValue", attributeValue);
+		if (maxResults >= 0) filter.put("limit", String.valueOf(maxResults));
+		if (offset > 0) filter.put("offset", String.valueOf(offset));
+		if (order != null && order != SortOrder.DEFAULT) filter.put("order", order.name());
+		if (esdlType != null && !esdlType.isEmpty()) filter.put("esdlType", esdlType);
+		//System.out.println("filter: " + filter);
+		//List<EnergyDataDescription> queryEDD = cdoManager.queryEDD(userInfo, filter);
+		try {
+			List<EnergyDataDescription> queryEDD = cdoManager.oclQueryEDD(userInfo, filter);
+			//System.out.println(queryEDD);
+			List<EnergyDataDescriptionJSON> result = queryEDD.stream().map(edd -> EnergyDataDescriptionJSON.fromEDD(edd, addImageData, addESDL, addHistory)).collect(Collectors.toList());
+			return Response.ok(result).build();
+		} catch (Exception e) {
+			return Response.serverError().entity("Error querying database: " + e.getMessage()).build();
+		}
+	}
+	
+	@GET
+	@Path("/query/tags")
+	@Operation(summary="Query all the tags from EnergyDataDescriptions from the database")
+	@Tag(ref = "EDR")
+	@Parameters({
+		@Parameter(name = "path", in = ParameterIn.QUERY, description = "Retrieve a tags from EDDs below a specific path"),
+	})
+	@APIResponses({
+		@APIResponse(description = "Returns a list of all EnergyDataDescription tags", 
+				content = @Content(mediaType = MediaType.APPLICATION_JSON, 
+				schema = @Schema(implementation = String[].class)))
+	})
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response queryTags(@QueryParam("path") String path) {
+		PublicUserInfo userInfo = new PublicUserInfo();
+		List<String> tags;
+		if (path != null && !path.isEmpty()) {
+			path = URI.decode(path);
+			if (!path.startsWith("/")) path = "/" + path;
+			// This OCL query filters first based on folder path and then casts the contents of the resource to EDDs, and then collect the tags of those EDDs
+			String oclQuery = "eresource::CDOResource.allInstances()"
+					+ "->select(r | r.path.startsWith('" + path + "'))"
+					+ "->collect(r | r.contents)"
+					+ "->select(e | e.oclIsTypeOf(edd::EnergyDataDescription))->collect(e| e.oclAsType(edd::EnergyDataDescription))" 
+					+ "->collect(e | e.tags)->asSet()->sortedBy(t|t)";
+			tags = cdoManager.runQueryT(userInfo, oclQuery, String.class, EresourcePackage.Literals.CDO_RESOURCE);
+
+		} else {
+			// no path: just select all EDDs and get their tags as a set. (
+			//TODO: filter on /edr/Public, as this also reviels other EDDs elsewhere (e.g. in protected folders)
+			String oclQuery = "edd::EnergyDataDescription.allInstances()->collect(e:EnergyDataDescription | e.tags)->asSet()->sortedBy(t|t)";
+			tags = cdoManager.runQueryT(userInfo, oclQuery, String.class, EddPackage.Literals.ENERGY_DATA_DESCRIPTION);
+		}
+		return Response.ok(tags).build();
+	}
+	
+	@GET
+	@Path("/query/tags/{esdlType}")
+	@Operation(summary="Query all the tags for a specific ESDL type from EnergyDataDescriptions from the database")
+	@Tag(ref = "EDR")
+	@Parameters({
+		@Parameter(name = "esdlType", in = ParameterIn.PATH, description = "esdlType to query tags from, e.g. Producer or GeothermalSource"),
+	})
+	@APIResponses({
+		@APIResponse(description = "Returns a list of EnergyDataDescription tags for an ESDL type", 
+				content = @Content(mediaType = MediaType.APPLICATION_JSON, 
+				schema = @Schema(implementation = String[].class)))
+	})
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response queryTagsByESDLType(/*@QueryParam("path") String path*/ @PathParam("esdlType") String esdlType) {
+		PublicUserInfo userInfo = new PublicUserInfo();
+		EClassifier eClassifier = EsdlPackage.eINSTANCE.getEClassifier(esdlType);
+		if (eClassifier != null) {				
+			// check if this is a valid ESDL type
+			String nsPrefix = eClassifier.getEPackage().getNsPrefix();
+			String oclESDLType = nsPrefix + "::" + eClassifier.getName();
+			//esdlTypeWithPrefix = nsPrefix+"::"+eClassifier.getName();
+			String oclQuery = "edd::EnergyDataDescription.allInstances()->select(e:EnergyDataDescription | e.esdl.oclIsKindOf("+oclESDLType+"))->collect(e:EnergyDataDescription | e.tags)->asSet()->sortedBy(t|t)";
+			List<String> tags = cdoManager.runQueryT(userInfo, oclQuery, String.class, EddPackage.Literals.ENERGY_DATA_DESCRIPTION);
+			return Response.ok(tags).build();
+		} else {
+			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Unknown ESDL type: " + esdlType)).build();
+		}
+		
+		
+	}
+	
+	@GET
+	@Path("/query/esdltypes")
+	@Operation(summary="Query all the ESDL types defined in EnergyDataDescriptions in the EDR")
+	@Tag(ref = "EDR")
+//	@Parameters({
+//		@Parameter(name = "path", in = ParameterIn.QUERY, description = "Retrieve a specific EDD based on the path of the description (id field), all filters are ignored"),
+//	})
+	@APIResponses({
+		@APIResponse(description = "Returns a list of ESDL types defined in EDDs", 
+				content = @Content(mediaType = MediaType.APPLICATION_JSON, 
+				schema = @Schema(implementation = String[].class)))
+	})
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response queryESDLtypes(/*@QueryParam("path") String path*/) {
+		PublicUserInfo userInfo = new PublicUserInfo();
+		String oclQuery = "edd::EnergyDataDescription.allInstances()->collect(e:EnergyDataDescription | e.esdlType)->asSet()->sortedBy(t|t)";
+		List<String> tags = cdoManager.runQueryT(userInfo, oclQuery, String.class, EddPackage.Literals.ENERGY_DATA_DESCRIPTION);
+		return Response.ok(tags).build();
 	}
 	
 	

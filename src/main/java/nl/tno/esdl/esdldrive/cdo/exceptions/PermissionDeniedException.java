@@ -16,10 +16,13 @@
 
 package nl.tno.esdl.esdldrive.cdo.exceptions;
 
-public class PermissionDeniedException extends Exception {
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response.Status;
+
+public class PermissionDeniedException extends WebApplicationException {
 	private static final long serialVersionUID = 300769009167117865L;
 
 	public PermissionDeniedException(String reason) {
-		super(reason);
+		super(reason, Status.FORBIDDEN);
 	}
 }

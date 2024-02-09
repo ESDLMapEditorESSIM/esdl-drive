@@ -1304,8 +1304,15 @@ public class CDOManager {
 		for (Map.Entry<String, String> entry: filter.entrySet()) {
 			switch (entry.getKey()) {
 			case "tags":
+				List<String> tags = List.of(entry.getValue().split(","));
+				// For checking for only one tag:
+				//oclFilter.add("e.tags.toLowerCase()->includes('" + entry.getValue().toLowerCase() + "')");
 				// toLowerCase -> makes search case insensitive
-				oclFilter.add("e.tags.toLowerCase()->includes('" + entry.getValue().toLowerCase() + "')");
+				String oclTagList = tags.stream().map(t -> "'" + t.toLowerCase() + "'").collect(Collectors.joining("," ));
+				// AND operation:
+				//oclFilter.add("e.tags.toLowerCase()->includesAll(Set{"+tagQuery+"})");
+				// OR operation:
+				oclFilter.add("e.tags.toLowerCase()->exists(t | Set{"+oclTagList+"}->includes(t))");			
 				break;
 			case "limit":
 				limit = Integer.parseInt(entry.getValue());
@@ -1341,6 +1348,9 @@ public class CDOManager {
 				if (attributeValue.contains(" or ")) {
 					attributeValue = attributeValue.split(" or ")[0]; // get only the first part for security reasons  
 				}
+				break;
+			case "path":
+				// path is handled below
 				break;
 			default:
 				//edd.title.matches('.*Ewoud.*')
@@ -1386,21 +1396,25 @@ public class CDOManager {
 		try {
 			CDOQuery oclQuery = view.createQuery("ocl", oclQueryString, EddPackage.Literals.ENERGY_DATA_DESCRIPTION);
 			log.info("EDR OCL query: " + oclQueryString + ", sort="+sortOrder.name());
-			List<EnergyDataDescription> result2 = oclQuery.getResult(EnergyDataDescription.class);
+			List<EnergyDataDescription> oclQueryResult = oclQuery.getResult(EnergyDataDescription.class);
 			
 			if (sortOrder == SortOrder.DESC) {
 				// put elements in new list, as EList does not support the set(i,j,e) operation
-				result2 = new ArrayList<EnergyDataDescription>(result2);
-				Collections.reverse(result2);
+				oclQueryResult = new ArrayList<EnergyDataDescription>(oclQueryResult);
+				Collections.reverse(oclQueryResult);
 			}
-	
+			
+			// filter results based on path
+			if (filter.get("path") != null) {
+				oclQueryResult = oclQueryResult.stream().filter(edd -> edd.cdoDirectResource().getPath().startsWith(filter.get("path"))).collect(Collectors.toList());
+			}
 			// filter results based on accessibility
-			List<EnergyDataDescription> accessibleEDD = result2.stream().filter(edd -> AccessController.canAccess(edd.cdoDirectResource().getPath(), userInfo)).collect(Collectors.toList());
+			List<EnergyDataDescription> accessibleEDD = oclQueryResult.stream().filter(edd -> AccessController.canAccess(edd.cdoDirectResource().getPath(), userInfo)).collect(Collectors.toList());
 			
 			limit = offset + limit;
 			if (limit <= 0) limit = accessibleEDD.size(); // no limit
 			limit = Math.min(accessibleEDD.size(), limit); // limit > result size
-			log.info("EDR OCL Query total="+result2.size()+", accessible="+accessibleEDD.size()+", limit=("+offset + ","+ limit+")");
+			log.info("EDR OCL Query total="+oclQueryResult.size()+", accessible="+accessibleEDD.size()+", limit=("+offset + ","+ limit+"), path="+filter.get("path"));
 			List<EnergyDataDescription> subList = accessibleEDD.subList(offset, limit);
 	
 			return subList;
@@ -1500,5 +1514,27 @@ public class CDOManager {
 			log.severe(e.getMessage());
 		}
 		return null;
+	}
+	
+	/**
+	 * Run a typed OCL query 
+	 * @param <T> The type of result e.g. EnergyDataDescription.class
+	 * @param userInfo - The UserInfo context of this query (for access control)
+	 * @param oclQueryString - query string in OCL
+	 * @param clazz The type of result e.g. EnergyDataDescription.class
+	 * @param oclContext - Context of the OCL query to help the query succeed (e.g. the reference to self or where to start the query such as EsdlPackage.Literals.ENERGY_SYSTEM)
+	 * @return List of type T object from the CDO database
+	 */
+	public <T> List<T> runQueryT(UserInfo userInfo, String oclQueryString, Class<T> clazz, Object oclContext) {
+		CDONet4jSession session = getSession(userInfo);
+		CDOView view = session.openView();		
+		LocalDateTime start = LocalDateTime.now();
+		CDOQuery oclQuery = view.createQuery("ocl", oclQueryString, oclContext);
+		oclQuery.setParameter("cdoLazyExtents", true);
+		List<T> result = oclQuery.getResult(clazz);		
+		System.out.println(userInfo.getUserName() + " (runQueryT OCL): " + oclQueryString + 
+				", size = " + result.size() + 
+				", time=" + Duration.between(start, LocalDateTime.now()));
+		return result;
 	}
 }
