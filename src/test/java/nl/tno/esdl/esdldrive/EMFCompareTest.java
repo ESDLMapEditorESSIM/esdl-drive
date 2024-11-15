@@ -39,6 +39,7 @@ public class EMFCompareTest {
 	private EnergySystem es1;
 	private EnergySystem es2;
 	private EnergySystem es3;
+	@SuppressWarnings("unused")
 	private EnergySystem ecw;
 	private EsdlResourceImpl ecwResource;
 

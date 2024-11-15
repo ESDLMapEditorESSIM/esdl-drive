@@ -45,7 +45,6 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.jms.IllegalStateException;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.CDOObjectHistory;
@@ -135,6 +134,7 @@ import nl.tno.esdl.esdldrive.edr.SearchESDLType;
 import nl.tno.esdl.esdldrive.edr.SortOrder;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
+import nl.tno.esdl.esdldrive.util.FileUtil;
 
 /**
  * @author werkmane
@@ -257,13 +257,14 @@ public class CDOManager {
 		CDOTransaction transaction = session.openTransaction();
 		//transaction.options().addChangeSubscriptionPolicy(CDOAdapterPolicy.CDO);
 		CDOCommitInfo commitInfo = null;
+		CDOResource fromDatabase = null;
 		try {
 			if (overwrite) {
 				// overwrite the file, not merge the differences
 				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
 			} else {
 				// try merging differences
-				CDOResource fromDatabase = transaction.getResource(resourceName);
+				fromDatabase = transaction.getResource(resourceName);
 				// file exists in database. Store only the differences, which is significantly faster. 
 				EObject esFromDatabase = fromDatabase.getContents().get(0);
 				
@@ -281,6 +282,12 @@ public class CDOManager {
 					// triggers an update to the ES.
 					log.info("Setting ES version to " + uploadedES.getVersion());
 				}
+//				if (esFromDatabase instanceof EnergyDataDescription && uploadedEObject instanceof EnergyDataDescription) {
+//					// for EMFCompare the id needs to be set in order to find equal objects
+//					EnergyDataDescription edd = (EnergyDataDescription) esFromDatabase;
+//					edd.setId(fromDatabase.getPath());
+//				}
+				
 				log.info("Database: " + esFromDatabase + ", input: " + uploadedEObject);
 				// Calculate differences and merge difference. Left = database, right is updated model
 				DefaultComparisonScope scope = new DefaultComparisonScope(fromDatabase, uploadedResource, null);
@@ -290,24 +297,13 @@ public class CDOManager {
 					// conflicts only happen in three-way compare, see org.eclipse.emf.compare.Conflict 
 					throw new MergeConfictException("Conflict(s) detected during saving.");
 				}
+//				var printstream = new PrintStream(System.out);
+//				EMFComparePrettyPrinter.printComparison(comparison, printstream);
 				log.info("Merging differences: " + comparison.getDifferences().size() );
 				// Now testing if this works:
 				final BatchMerger batchMerger = new BatchMerger(emfCompareMergerRegistry);
 				batchMerger.copyAllRightToLeft(comparison.getDifferences(), emfCompareMonitor);
-
-				// TODO: remove below code if above two lines work..
-				//				LinkedList<Diff> diffs = new LinkedList<Diff>();
-//				for (Diff diff: comparison.getDifferences()) {
-//					createMergeDiffList(diffs, diff, 0);
-//				}
-//				log.info("Diff list size: " + diffs.size() );
-//				while (!diffs.isEmpty()) {
-//					Diff diff = diffs.removeLast(); // iterate from tail to head
-//					IMerger merger = emfCompareMergerRegistry.getHighestRankingMerger(diff);
-//					merger.copyRightToLeft(diff, emfCompareMonitor);
-//				}
-
-				
+			
 				if (commitMessage == null || commitMessage.isEmpty()) {
 					commitMessage = "Update";
 				}
@@ -318,10 +314,25 @@ public class CDOManager {
 			}
 		} catch (Exception e) {
 			// EMFCompare throws NullPointerException when there are errors in the XML
+//			try {
+//				if (fromDatabase != null) {
+//					String databaseESDL = convertToXMLString(fromDatabase);
+//					EObject copy = EcoreUtil.copy(uploadedResource.getContents().get(0));
+//					String uploaded = convertEObjectToString(copy);
+//					FileUtil.saveStringToFile(databaseESDL, "database.esdl");
+//					FileUtil.saveStringToFile(uploaded, "uploaded.esdl");
+//				}
+//			} catch (IOException e1) {
+//				// TODO Auto-generated catch block
+//				e1.printStackTrace();
+//			}
 			if (e instanceof CDOResourceNodeNotFoundException || e instanceof InvalidURIException) {
 				log.log(Level.INFO, "Creating new file using full save: " + resourceName);
 				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
 			} else if (e instanceof NullPointerException) {
+				log.log(Level.SEVERE, "Error saving by merging, trying full save: ", e);
+				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
+			} else if (e instanceof IllegalStateException) {
 				log.log(Level.SEVERE, "Error saving by merging, trying full save: ", e);
 				commitInfo = storeFullResource(transaction, resourceName, uploadedResource, commitMessage);
 			} else {
@@ -453,7 +464,6 @@ public class CDOManager {
 
 	public String convertToXMLString(CDOResource cdoResource) throws IOException {
 		LocalDateTime start = LocalDateTime.now();
-		XMLResourceImpl xmlResourceImpl = new XMLResourceImpl();
 		EObject eObject = cdoResource.getContents().get(0);
 //		if (eObject instanceof CDOObject) {
 //			// prefetch of cdoResource gives timeout, but this seems to work
@@ -463,7 +473,17 @@ public class CDOManager {
 		EObject copy = EcoreUtil.copy(eObject);
 		LocalDateTime stop = LocalDateTime.now();
 		log.info("Copy " + cdoResource.getPath() + " took " + Duration.between(start, stop));
-		xmlResourceImpl.getContents().add(copy);
+		String resourceAsString = convertEObjectToString(copy);
+		
+		stop = LocalDateTime.now();
+		log.info("Serializing " + cdoResource.getPath() + " took " + Duration.between(start, stop));
+		
+		return resourceAsString;
+	}
+
+	public static String convertEObjectToString(EObject eObject) throws IOException {
+		XMLResourceImpl xmlResourceImpl = new XMLResourceImpl();
+		xmlResourceImpl.getContents().add(eObject);
 		
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		HashMap<String, Object> options = new HashMap<String, Object>();
@@ -471,10 +491,6 @@ public class CDOManager {
 		xmlResourceImpl.save(outputStream, options);
 
 		String resourceAsString = new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
-		
-		stop = LocalDateTime.now();
-		log.info("Serializing " + cdoResource.getPath() + " took " + Duration.between(start, stop));
-		
 		return resourceAsString;
 	}
 	

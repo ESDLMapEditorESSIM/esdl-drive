@@ -15,11 +15,11 @@ import java.util.stream.Collectors;
 import javax.annotation.security.RolesAllowed;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
-import javax.jms.IllegalStateException;
 import javax.json.Json;
 import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
+import javax.validation.Valid;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
@@ -415,7 +415,7 @@ public class EDRResource {
 		@APIResponse(responseCode = "403", description = "Access denied, provide proper credentials"),
 		@APIResponse(responseCode = "500", description = "Internal server error.")
 	})
-	public Response upload(EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL, @QueryParam("commitMessage") String commitMessage) throws URISyntaxException {
+	public Response upload(@Valid EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL, @QueryParam("commitMessage") String commitMessage) throws URISyntaxException {
 		String path = URI.decode(resourceURL);
 		if (path.isEmpty()) {
 			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Missing path and filename of this EDD in EDR. Put it after the url /upload/<path to store>")).build();
@@ -438,6 +438,9 @@ public class EDRResource {
 		
 		try {
 			EnergyDataDescription edd = eddJson.toEDD();
+//			if (edd.getId() == null || edd.getId().isBlank()) {
+//				edd.setId(path); // needed for EMF Compare
+//			}
 			Resource resource;
 			resource = new XMLResourceImpl();
 			resource.getContents().add(edd);
@@ -447,7 +450,7 @@ public class EDRResource {
 			log.severe(e.getMessage());
 			e.printStackTrace();
 			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Error parsing input:" + e.getMessage())).build();
-		} catch (ConcurrentAccessException | IllegalStateException | TimeoutException |InterruptedException e) {
+		} catch (ConcurrentAccessException | TimeoutException |InterruptedException e) {
 			log.severe(e.getMessage());
 			e.printStackTrace();
 			return Response.serverError().entity(getErrorAsJson("Internal server error" + e.getMessage())).build();

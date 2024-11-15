@@ -47,8 +47,10 @@ public class EDDAnnotationTest {
 	private static final String REPOSITORY_NAME = "esdldrive";
 	private final static String BASE_URL = "http://localhost:9080/store/";
 	//private final static String RESOURCE = "resource";
+	@SuppressWarnings("unused")
 	private final static String PUBLIC_RESOURCE = "resource/public/";
 	private final static String EDR_QUERY = "edr/query";
+	@SuppressWarnings("unused")
 	private final static String EDR_BROWSE = "edr/browse";
 	private Client client;
 	

@@ -76,7 +76,6 @@ import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.DrivePermission;
 import nl.tno.esdl.esdldrive.cdo.ResourceMetadata;
-import nl.tno.esdl.esdldrive.cdo.ResourceResult;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;

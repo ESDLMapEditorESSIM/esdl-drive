@@ -65,7 +65,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 	info = @Info(
 			contact = @Contact(email = "ewoud.werkman@tno.nl", name = "Ewoud Werkman", url = "http://www.tno.nl/"), 
 			title = "ESDL Drive", 
-			version="22.xx",
+			version="24.xx",
 			description = "This API provides ways to store and retrieve ESDL files from the ESDL Drive, a storage solution for ESDL files",
 			license = @License(name = "Apache License 2.0", url="https://www.apache.org/licenses/LICENSE-2.0.html")), 
 	externalDocs = @ExternalDocumentation(description = "ESDL model documentation", url = "https://energytransition.github.io")  

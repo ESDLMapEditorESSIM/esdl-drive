@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<project
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+	xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nl.tno.esdl</groupId>
 	<artifactId>esdl-drive</artifactId>
-	<version>24.02</version>
+	<version>24.06</version>
 	<packaging>war</packaging>
 	<properties>
-		<openliberty.maven.version>3.3.4</openliberty.maven.version>
-		<openliberty.version>21.0.0.7</openliberty.version>
+		<openliberty.maven.version>3.10.2</openliberty.maven.version>
+		<openliberty.version>24.0.0.3</openliberty.version>
 		<final.name>esdl-drive</final.name>
 		<server.name>esdl-drive-server</server.name>
 		<failOnMissingWebXml>false</failOnMissingWebXml>
@@ -47,6 +50,32 @@
 			<type>esa</type>
 			<scope>provided</scope>
 		</dependency>
+
+		<!-- Latest ecore libraries -->
+		<dependency>
+			<groupId>org.eclipse.emf</groupId>
+			<artifactId>org.eclipse.emf.ecore</artifactId>
+			<version>2.36.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.emf</groupId>
+			<artifactId>org.eclipse.emf.ecore.change</artifactId>
+			<version>2.16.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.eclipse.emf</groupId>
+			<artifactId>org.eclipse.emf.common</artifactId>
+			<version>2.30.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.eclipse.emf</groupId>
+			<artifactId>org.eclipse.emf.ecore.xmi</artifactId>
+			<version>2.37.0</version>
+		</dependency>
+
+		<!-- CDO (self compiled) -->
 		<dependency>
 			<groupId>org.eclipselabs</groupId>
 			<artifactId>cdo</artifactId>
@@ -65,6 +94,9 @@
 			<version>4.19.1</version>
 			<type>pom</type>
 		</dependency>
+		
+		
+		<!-- ESDL and EDD models -->
 		<dependency>
 			<groupId>nl.tno.esdl</groupId>
 			<artifactId>esdl</artifactId>
@@ -85,14 +117,15 @@
 		<dependency>
 			<groupId>org.eclipse.emf</groupId>
 			<artifactId>org.eclipse.emf.compare</artifactId>
-			<version>3.5.3.202005260905</version>
+			<version>3.5.3.202401051648</version>
 		</dependency>
-		<!-- for EMF Compare, check for update in july 2022 to get rid of this log4j dependency -->
-		<dependency>
-			<groupId>log4j</groupId>
-			<artifactId>log4j</artifactId>
-			<version>1.2.17</version>
-		</dependency>
+		<!-- for EMF Compare, check for update in july 2022 to get rid of this
+		log4j dependency -->
+<!--		<dependency>-->
+<!--			<groupId>log4j</groupId>-->
+<!--			<artifactId>log4j</artifactId>-->
+<!--			<version>1.2.17</version>-->
+<!--		</dependency>-->
 		<!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-simple -->
 		<dependency>
 			<groupId>org.slf4j</groupId>
@@ -104,6 +137,8 @@
 			<artifactId>guava</artifactId>
 			<version>29.0-jre</version>
 		</dependency>
+		
+		<!-- testing -->
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>

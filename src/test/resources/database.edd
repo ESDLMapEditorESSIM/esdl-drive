@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edd:EnergyDataDescription xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:edd="http://www.tno.nl/edr/edd" xmlns:esdl="http://www.tno.nl/esdl" title="Lithium-ion Battery for Power Applications" description="Lithium-ion (Li-ion) batteries store electricity through a reversible chemical reaction. The basic components are a container, electrodes, and an electrolyte." esdlType="Battery">
+  <tags>Factsheet</tags>
+  <tags>Battery</tags>
+  <tags>2020</tags>
+  <esdl xsi:type="esdl:Battery" id="c10b5dc5-c993-4bec-a16e-68c360983325" name="Lithium-ion Battery for Power Applications" description="Lithium-ion (Li-ion) batteries store electricity through a reversible chemical reaction. The basic components are a container, electrodes, and an electrolyte." capacity="7.2E9">
+    <dataSource xsi:type="esdl:DataSource" name="Factsheet: Lithium-ion Battery for Power Applications" description="This is the ESDL version of the factsheet 'Lithium-ion Battery for Power Applications', generated based on the TNO factsheet, for the year 2020" attribution="https://energy.nl/en/factsheet/lithium-ion-battery-for-power-applications-2/"/>
+    <costInformation>
+      <investmentCosts xsi:type="esdl:SingleValue" value="363.0">
+        <profileQuantityAndUnit xsi:type="esdl:QuantityAndUnitType" unit="EURO" perMultiplier="KILO" perUnit="WATT" description="Cost in EUR/kW" id="d6e451b6-56ad-49e9-945d-6a014cbd85df"/>
+      </investmentCosts>
+      <variableOperationalCosts xsi:type="esdl:SingleValue" value="2.6">
+        <profileQuantityAndUnit xsi:type="esdl:QuantityAndUnitType" unit="EURO" perMultiplier="MEGA" perUnit="WATTHOUR" description="Cost in EUR/MWh" id="1ebaf0f4-6049-4b24-accf-74ff37d54052"/>
+      </variableOperationalCosts>
+    </costInformation>
+    <port xsi:type="esdl:OutPort" id="7d57368f-c6d9-4c5b-b059-a27165b25441" name="OutPort for Electricity"/>
+    <port xsi:type="esdl:InPort" id="4e9ec03d-ebfb-4d17-9e0f-434934fed1d6" name="InPort for Electricity"/>
+    <behaviour xsi:type="esdl:InputOutputRelation" mainPort="7d57368f-c6d9-4c5b-b059-a27165b25441">
+      <mainPortRelation ratio="0.85" port="4e9ec03d-ebfb-4d17-9e0f-434934fed1d6"/>
+    </behaviour>
+  </esdl>
+</edd:EnergyDataDescription>

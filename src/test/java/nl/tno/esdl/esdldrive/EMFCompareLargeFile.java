@@ -38,6 +38,7 @@ public class EMFCompareLargeFile {
 	@Before
 	public void createModels() throws IOException {
 		EsdlPackage.eINSTANCE.eClass(); // init esdl
+		@SuppressWarnings("unused")
 		EsdlFactory esdl = EsdlFactory.eINSTANCE;
 		
 		vestaResource = new EsdlResourceImpl(URI.createFileURI("c:/Users/werkmane/OneDrive - TNO/Documents/ESDL/EnergySystems/vesta_output_warmtekeuze_per_buurt.esdl"));

@@ -46,6 +46,7 @@
 
 <!--  testen -->
 		<feature>appSecurity-3.0</feature>
+		<feature>beanValidation-2.0</feature>
 		<feature>cdi-2.0</feature>
 		<feature>jaxrs-2.1</feature>
 		<feature>jsp-2.3</feature> <!-- important as openIDConnectClient with otherwise throw an exception as it requires jsp-2.2 -->

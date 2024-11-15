@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<edd:EnergyDataDescription xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:edd="http://www.tno.nl/edr/edd" xmlns:esdl="http://www.tno.nl/esdl" title="Ondiepe geothermie (200m)" description="Description for Ondiepe geothermie (200m)" version="1" esdlType="GeothermalSource" id="ondiepe_geothermie">
+  <tags>status:Final</tags>
+  <tags>esdl:CostInformation</tags>
+  <tags>Factsheet</tags>
+  <tags>WarmingUp</tags>
+  <tags>GeothermalSource</tags>
+  <esdl xsi:type="esdl:GeothermalSource" id="2799e0f6-52ea-40f2-a7d7-7d2aac7f23c3" name="Ondiepe geothermie (200m)" power="3800000.0" maxTemperature="30.0">
+    <dataSource xsi:type="esdl:DataSource" name="WarmingUp factsheet: Ondiepe geothermie (200m)" description="This data was generated using the 'kosten_per_asset.xslx' file in the 'Kentallen' directory of WarmingUp project 1D" attribution=""/>
+    <costInformation>
+      <investmentCosts xsi:type="esdl:SingleValue" value="1259000.0">
+        <profileQuantityAndUnit xsi:type="esdl:QuantityAndUnitType" unit="EURO" perMultiplier="MEGA" perUnit="WATT" description="Cost in EUR/MW" id="ffc977cb-84d4-443c-9d25-0cc38af00b1b"/>
+      </investmentCosts>
+      <variableOperationalCosts xsi:type="esdl:SingleValue" value="2.0">
+        <profileQuantityAndUnit xsi:type="esdl:QuantityAndUnitType" unit="EURO" perMultiplier="MEGA" perUnit="WATTHOUR" description="Cost in EUR/MWh" id="1f5afcf1-349e-4ffb-ba72-4ec305b1f92b"/>
+      </variableOperationalCosts>
+      <fixedMaintenanceCosts xsi:type="esdl:SingleValue" value="192000.0">
+        <profileQuantityAndUnit xsi:type="esdl:QuantityAndUnitType" unit="EURO" perMultiplier="MEGA" perUnit="WATT" description="Cost in EUR/MW" id="9a461d72-35e6-45e6-8273-3bacc6ed2c53"/>
+      </fixedMaintenanceCosts>
+    </costInformation>
+  </esdl>
+</edd:EnergyDataDescription>

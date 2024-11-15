@@ -10,8 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.TreeSet;
 
-import javax.json.bind.annotation.JsonbProperty;
 import javax.json.bind.annotation.JsonbPropertyOrder;
+import javax.validation.constraints.NotNull;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
@@ -36,13 +36,13 @@ import nl.tno.esdl.esdldrive.util.ESDLUtil;
 @Schema(name="EnergyDataDescription", description="Json that describes an Energy Data Description (EDD) in the EDR, i.e. metadata for an EDR entry")
 public class EnergyDataDescriptionJSON {
 	
-	@Schema(name="id", description="Not used when storing and EDD, describes the unique path of this EDD when retrieved from the EDR", required = false, readOnly = true)
+	@Schema(name="id", description="Not necessary when storing an EDD, describes the unique path of this EDD when retrieved from the EDR", required = false, readOnly = true)
 	private String id;
-	@JsonbProperty(nillable = false)
 	@Schema(description="Title of the description", required=true)
+	@NotNull
 	private String title;
-	@JsonbProperty(nillable = false)
 	@Schema(description="Longer description about the data that is described")
+	@NotNull
 	private String description;
 	@Schema(description="Define tags for this data", required=false)
 	private List<String> tags;
@@ -54,7 +54,7 @@ public class EnergyDataDescriptionJSON {
 	private Integer validityYear;
 	@Schema(description="The URL to a grafana dashboard when timeseries or profiles are described", required=false)
 	private String graphURL;
-	@JsonbProperty(nillable = false)
+	@NotNull
 	@Schema(description="The ESDL as XML string and Base64 encoded, that is described by this EDD", required=true)
 	private String esdl;
 	@Schema(description="Image and content type for this description. Image data should be Base64 encoded", required=false, implementation = ImageJSON.class)
@@ -83,7 +83,7 @@ public class EnergyDataDescriptionJSON {
 	public EnergyDataDescription toEDD() throws IOException {
 		EnergyDataDescription edd = EddFactory.eINSTANCE.createEnergyDataDescription();
 		edd.setTitle(title);
-		//edd.setId(id);
+		edd.setId(id); // need to set ID, as ID is used in EMF compare.
 		edd.setDescription(description);
 		edd.setGraphURL(graphURL);
 		edd.setVersion(version);
