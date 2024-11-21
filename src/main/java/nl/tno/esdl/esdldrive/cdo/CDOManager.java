@@ -282,11 +282,13 @@ public class CDOManager {
 					// triggers an update to the ES.
 					log.info("Setting ES version to " + uploadedES.getVersion());
 				}
-//				if (esFromDatabase instanceof EnergyDataDescription && uploadedEObject instanceof EnergyDataDescription) {
-//					// for EMFCompare the id needs to be set in order to find equal objects
-//					EnergyDataDescription edd = (EnergyDataDescription) esFromDatabase;
-//					edd.setId(fromDatabase.getPath());
-//				}
+				if (esFromDatabase instanceof EnergyDataDescription && uploadedEObject instanceof EnergyDataDescription) {
+					// for EMFCompare the id needs to be set in order to find equal objects
+					EnergyDataDescription edd = (EnergyDataDescription) esFromDatabase;
+					//log.info("EMF Compare (pre):  EDD Input path " + resourceName + ", database path: " + fromDatabase.getPath());
+					edd.setId(fromDatabase.getPath());
+					//log.info("EMF Compare (post): EDD Input path " + resourceName + ", database path: " + fromDatabase.getPath());
+				}
 				
 				log.info("Database: " + esFromDatabase + ", input: " + uploadedEObject);
 				// Calculate differences and merge difference. Left = database, right is updated model

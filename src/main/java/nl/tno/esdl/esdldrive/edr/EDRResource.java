@@ -72,6 +72,7 @@ import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
+import nl.tno.esdl.esdldrive.util.JSONUtil;
 
 @RequestScoped
 @Path("/edr")
@@ -115,7 +116,7 @@ public class EDRResource {
 		// allow only browsing from /edr/public
 		if (!id.startsWith("/")) id = "/" + id;
 		if (!id.toLowerCase().startsWith("/edr/public")) {
-			return Response.status(Status.UNAUTHORIZED).entity(getErrorAsJson("Not a public folder")).build();
+			return Response.status(Status.UNAUTHORIZED).entity(JSONUtil.getErrorAsJson("Not a public folder")).build();
 		}		 
 		String path = URI.decode(id);
 		
@@ -128,7 +129,7 @@ public class EDRResource {
 					JsonArrayBuilder arrayBuilder = BrowserController.buildFolderContents(folderContents);
 					return Response.ok(arrayBuilder.build()).build();
 				} catch (CDOResourceNodeNotFoundException e) {
-					return Response.status(Status.NOT_FOUND).entity(getErrorAsJson("Not found: " + id)).build();
+					return Response.status(Status.NOT_FOUND).entity(JSONUtil.getErrorAsJson("Not found: " + id)).build();
 				}
 			case get_content:
 				try {
@@ -141,13 +142,13 @@ public class EDRResource {
 					//System.out.println(jsonObject);
 					return Response.ok(jsonObject).build();
 				} catch (PermissionDeniedException e) {
-					return Response.serverError().status(Status.FORBIDDEN).entity(getErrorAsJson("Access denied")).build();
+					return Response.serverError().status(Status.FORBIDDEN).entity(JSONUtil.getErrorAsJson("Access denied")).build();
 				} catch (CDOResourceNodeNotFoundException e) {
-					return Response.serverError().status(Status.NOT_FOUND).entity(getErrorAsJson(id + "not found")).build();
+					return Response.serverError().status(Status.NOT_FOUND).entity(JSONUtil.getErrorAsJson(id + "not found")).build();
 				}
 			default:
 				return Response.status(Status.METHOD_NOT_ALLOWED)
-						.entity(getErrorAsJson("Unsupported operation: " + operation))
+						.entity(JSONUtil.getErrorAsJson("Unsupported operation: " + operation))
 						.build();
 			
 		}
@@ -276,7 +277,7 @@ public class EDRResource {
 						EnergyDataDescriptionJSON dataDescriptionJSON = EnergyDataDescriptionJSON.fromEDD(energyDataDescription, addImageData, addESDL, addHistory);
 						return Response.ok(Collections.singletonList(dataDescriptionJSON)).build();
 					} else {
-						return Response.serverError().entity(getErrorAsJson("Not an EnergyDataDescription")).build();
+						return Response.serverError().entity(JSONUtil.getErrorAsJson("Not an EnergyDataDescription")).build();
 					}
 				}
 			} catch (PermissionDeniedException e) {
@@ -284,9 +285,9 @@ public class EDRResource {
 				//e.printStackTrace();
 				throw e;
 			} catch (CDOResourceNodeNotFoundException e) {
-				return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Cannot find path")).build();
+				return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Cannot find path")).build();
 			}
-			//return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Cannot get EDD from path " + path)).build();
+			//return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Cannot get EDD from path " + path)).build();
 		}
 			
 			
@@ -371,7 +372,7 @@ public class EDRResource {
 			List<String> tags = cdoManager.runQueryT(userInfo, oclQuery, String.class, EddPackage.Literals.ENERGY_DATA_DESCRIPTION);
 			return Response.ok(tags).build();
 		} else {
-			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Unknown ESDL type: " + esdlType)).build();
+			return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Unknown ESDL type: " + esdlType)).build();
 		}
 		
 		
@@ -418,7 +419,7 @@ public class EDRResource {
 	public Response upload(@Valid EnergyDataDescriptionJSON eddJson, @PathParam("resourceURL") String resourceURL, @QueryParam("commitMessage") String commitMessage) throws URISyntaxException {
 		String path = URI.decode(resourceURL);
 		if (path.isEmpty()) {
-			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Missing path and filename of this EDD in EDR. Put it after the url /upload/<path to store>")).build();
+			return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Missing path and filename of this EDD in EDR. Put it after the url /upload/<path to store>")).build();
 		}
 		if (!path.startsWith("/")) {
 			path = "/" + path;
@@ -449,17 +450,17 @@ public class EDRResource {
 		} catch (IOException e) {
 			log.severe(e.getMessage());
 			e.printStackTrace();
-			return Response.status(Status.BAD_REQUEST).entity(getErrorAsJson("Error parsing input:" + e.getMessage())).build();
+			return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Error parsing input:" + e.getMessage())).build();
 		} catch (ConcurrentAccessException | TimeoutException |InterruptedException e) {
 			log.severe(e.getMessage());
 			e.printStackTrace();
-			return Response.serverError().entity(getErrorAsJson("Internal server error" + e.getMessage())).build();
+			return Response.serverError().entity(JSONUtil.getErrorAsJson("Internal server error" + e.getMessage())).build();
 		} catch (CommitException e) {
 			log.severe(e.getMessage());
 			e.printStackTrace();
-			return Response.serverError().entity(getErrorAsJson("Error storing to EDR:"+e.getMessage())).build();
+			return Response.serverError().entity(JSONUtil.getErrorAsJson("Error storing to EDR:"+e.getMessage())).build();
 		} catch (PermissionDeniedException e) {
-			return Response.status(Status.FORBIDDEN).entity(getErrorAsJson("Access denied: " + e.getMessage())).build();
+			return Response.status(Status.FORBIDDEN).entity(JSONUtil.getErrorAsJson("Access denied: " + e.getMessage())).build();
 		}
 		
 		//return Response.ok().build();
@@ -470,9 +471,5 @@ public class EDRResource {
 	
 	
 	
-	private JsonObject getErrorAsJson(String reason) {
-		return Json.createObjectBuilder()
-				.add("error", reason)
-				.build();
-	}
+
 }
