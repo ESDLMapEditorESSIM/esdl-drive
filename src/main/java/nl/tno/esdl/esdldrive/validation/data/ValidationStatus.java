@@ -2,7 +2,7 @@ package nl.tno.esdl.esdldrive.validation.data;
 
 import java.util.List;
 
-import javax.json.bind.annotation.JsonbPropertyOrder;
+import jakarta.json.bind.annotation.JsonbPropertyOrder;
 
 @JsonbPropertyOrder({"validationInput", "status", "message", "line", "column", "causes"})
 public class ValidationStatus {

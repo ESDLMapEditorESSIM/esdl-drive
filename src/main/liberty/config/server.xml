@@ -12,6 +12,10 @@
 	<variable name="keycloak_client_secret" defaultValue="329ab44b-087b-44d2-89b7-da139d32a7b1" />
 	<!--  default keystore password, please change somewhere -->
 	<variable name="keytool_password" defaultValue="password" />
+	<variable name="postgress_user" defaultValue="drive"/>
+	<variable name="postgress_password" defaultValue="password"/>
+	<variable name="postgress_host" defaultValue="localhost"/>
+	<!--<variable name="postgress_port" defaultValue="5432"/> : not working (not a number but a string)--> 
 	
 	
 	
@@ -45,17 +49,19 @@
 <!-- 		<feature>openIDConnectClient-1.0</feature> -->
 
 <!--  testen -->
-		<feature>appSecurity-3.0</feature>
-		<feature>beanValidation-2.0</feature>
-		<feature>cdi-2.0</feature>
-		<feature>jaxrs-2.1</feature>
-		<feature>jsp-2.3</feature> <!-- important as openIDConnectClient with otherwise throw an exception as it requires jsp-2.2 -->
-		<feature>mpConfig-2.0</feature>
-		<feature>mpHealth-3.0</feature>
-		<feature>mpJwt-1.2</feature>
-		<feature>mpMetrics-3.0</feature>
-		<feature>mpOpenAPI-2.0</feature>
+		<feature>appSecurity-5.0</feature>
+		<feature>cdi-4.0</feature>
+		<feature>restfulWS-3.1</feature>  <!--		<feature>jaxrs-2.1</feature>-->
+		<!-- <feature>jsp-2.3</feature> --> <!-- important as openIDConnectClient with otherwise throw an exception as it requires jsp-2.2 -->
+		<feature>mpConfig-3.1</feature>
+		<feature>mpHealth-4.0</feature>
+		<feature>mpJwt-2.1</feature>
+		<feature>mpMetrics-5.1</feature>
+		<feature>mpOpenAPI-3.1</feature>
 		<feature>openIDConnectClient-1.0</feature>
+		<!-- next few are for geographical persistance -->
+		 <feature>jdbc-4.3</feature>
+		
 	</featureManager>
 
 	<httpAccessLogging id="accessLogging" logFormat='%h %u %{t}W "%r" %s %b %D'/> <!--  logFormat='%h %u %{t}W "%r" %s %b' -->
@@ -117,6 +123,18 @@
 
   <!-- com.ibm.ws.webcontainer*=all:HTTPChannel=all:GenericBNF=all -->
 	<logging traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all:nl.tno.*=all" consoleLogLevel="INFO" consoleFormat="SIMPLE" maxFileSize="20"/> <!-- maxFiles="8"   -->
+	
+	<!-- database persistence -->
+	<library id="jdbcLib">
+    	<fileset dir="jdbc" includes="postgresql*.jar"/>
+	</library>
+
+	<dataSource jndiName="jdbc/postgresql">
+		<jdbcDriver libraryRef="jdbcLib" />
+		<properties serverName="${postgres_host}" portNumber="5432"
+			databaseName="esdl_geometries"
+			user="${postgres_user}" password="${postgres_password}" />
+	</dataSource>
 
 
 </server>
