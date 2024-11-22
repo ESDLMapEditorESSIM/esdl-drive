@@ -9,7 +9,7 @@
 	<version>24.06</version>
 	<packaging>war</packaging>
 	<properties>
-		<openliberty.maven.version>3.10.2</openliberty.maven.version>
+		<openliberty.maven.version>3.11.1</openliberty.maven.version>
 		<openliberty.version>24.0.0.3</openliberty.version>
 		<final.name>esdl-drive</final.name>
 		<server.name>esdl-drive-server</server.name>
