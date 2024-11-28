@@ -78,5 +78,6 @@ public class ESDLDriveApplication extends Application {
 	
 	public ESDLDriveApplication() {
 		System.out.println("Starting ESDL Drive version " + version);
+		
 	}
 }

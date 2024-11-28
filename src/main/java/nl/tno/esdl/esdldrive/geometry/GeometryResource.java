@@ -1,9 +1,11 @@
 package nl.tno.esdl.esdldrive.geometry;
 
+import java.util.List;
 import java.util.logging.Logger;
 
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
+import javax.transaction.Transactional;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -24,7 +26,10 @@ import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
+import nl.tno.esdl.esdldrive.geometry.dao.ESDLGeoObjectsDao;
+import nl.tno.esdl.esdldrive.geometry.entities.ESDLGeoObjects;
 import nl.tno.esdl.esdldrive.geometry.messages.GeometryRequest;
+import nl.tno.esdl.esdldrive.geometry.processing.ConvertEnergySystemToGeometryAssets;
 import nl.tno.esdl.esdldrive.util.JSONUtil;
 
 @RequestScoped
@@ -36,18 +41,53 @@ public class GeometryResource {
 
 	private Logger log = Logger.getLogger(this.getClass().getName());
 
-	public GeometryResource() {
-
-	}
+	@Inject
+    private ESDLGeoObjectsDao assetDao;
 
 	@POST
-	@Path("/")
+	@Path("/assets")
 	@Produces(MediaType.APPLICATION_JSON)
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Operation(summary = "Query the geometries of an ESDL")
 	@Tag(ref = "Geometry")
-	public Response compare(GeometryRequest request) {
+	@Transactional
+	public Response getGeometries(GeometryRequest request) {
 		log.info("Request geometries for ESDL file: " + request.getPath());
+		
+		IdToken token = PropagationHelper.getIdToken();
+        UserInfo userInfo;
+		try {
+			userInfo = AccessController.userInfoFromToken(token);
+		} catch (InvalidLoginInformationException e) {
+			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
+		} 
+		
+		CDOResource resource = cdoManager.getResource(userInfo, request.getPath());
+		EObject contents = resource.getContents().get(0);
+		
+		if (contents != null && contents instanceof esdl.EnergySystem) {
+			esdl.EnergySystem energySystem = (esdl.EnergySystem) contents;
+			String id = energySystem.getId();
+			// query geom database
+			List<ESDLGeoObjects> assets = assetDao.findAssets(id);
+			return Response.ok(assets).build();
+			// if not found, generate geometries
+		} else {
+			return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Specified path is not an EnergySystem.")).build();
+		}
+
+		//return Response.ok().build();
+	}
+	
+	@POST
+	@Path("/init")
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Operation(summary = "Initialize an Energy system's geometries")
+	@Tag(ref = "Geometry")
+	@Transactional
+	public Response initializeEnergySystem(GeometryRequest request) {
+		log.info("Initialize geometries for ESDL file: " + request.getPath());
 		
 		IdToken token = PropagationHelper.getIdToken();
         UserInfo userInfo;
@@ -62,13 +102,19 @@ public class GeometryResource {
 		
 		if (contents instanceof esdl.EnergySystem) {
 			esdl.EnergySystem energySystem = (esdl.EnergySystem) contents;
-			String id = energySystem.getId();
-			// query geom database
-			// if not found, generate geometries
+			if (assetDao.hasEnergySystem(energySystem.getId())) {
+				return Response.status(Status.FOUND).entity(JSONUtil.getErrorAsJson("Energy system " + energySystem.getName() + " already present")).build();
+			} else {
+				// if not found, generate geometries
+				List<ESDLGeoObjects> objects = ConvertEnergySystemToGeometryAssets.convert(energySystem);
+				// initalize database with assets with geometries
+				assetDao.createAllGeoObjects(objects);
+				return Response.ok().build();
+			}
 		} else {
 			return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Specified path is not an EnergySystem.")).build();
 		}
-
-		return Response.ok().build();
+		
+		//return Response.ok().build();
 	}
 }

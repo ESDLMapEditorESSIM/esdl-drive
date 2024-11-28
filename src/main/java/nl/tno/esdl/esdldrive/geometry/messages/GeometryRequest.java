@@ -8,7 +8,9 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public class GeometryRequest {
 	@NotNull
 	@Schema(description="Path of the ESDL file in the ESDL Drive", required=true)
-	private final String path;
+	private String path;
+	
+	public GeometryRequest() {}
 	
 	public GeometryRequest(String path) {
 		this.path = path;
@@ -16,6 +18,10 @@ public class GeometryRequest {
 
 	public String getPath() {
 		return path;
+	}
+	
+	public void setPath(String path) {
+		this.path = path;
 	}
 
 }

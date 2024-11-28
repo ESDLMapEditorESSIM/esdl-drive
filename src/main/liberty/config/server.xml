@@ -1,122 +1,114 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <server description="${project.name}">
-	
+
 	<config monitorInterval="10s" />
-	
+
 	<!--  These variable can be overriden by Env variables, e.g. KEYCLOAK_REALM -->
 	<!-- keycloak_realm URI, accessible by this service -->
-	<variable name="keycloak_realm" defaultValue="http://keycloak:8080/auth/realms/esdl-mapeditor" />
-	<!-- Optinal for localhost deployment, Keycloak realm URI, external accessible. Defaults to the 'keycloak_realm' URI -->
+	<variable name="keycloak_realm"
+		defaultValue="http://keycloak:8080/auth/realms/esdl-mapeditor" />
+	<!-- Optinal for localhost deployment, Keycloak realm URI, external
+	accessible. Defaults to the 'keycloak_realm' URI -->
 	<variable name="keycloak_realm_external" defaultValue="${keycloak_realm}" />
 	<!-- Client secret for cdo_mondaine client in keycloak -->
-	<variable name="keycloak_client_secret" defaultValue="329ab44b-087b-44d2-89b7-da139d32a7b1" />
+	<variable name="keycloak_client_secret"
+		defaultValue="329ab44b-087b-44d2-89b7-da139d32a7b1" />
 	<!--  default keystore password, please change somewhere -->
 	<variable name="keytool_password" defaultValue="password" />
-	
-	
-	
+	<variable name="postgres_user" defaultValue="drive" />
+	<variable name="postgres_password" defaultValue="password" />
+	<variable name="postgres_host" defaultValue="localhost" />
+	<!--<variable name="postgress_port" defaultValue="5432"/> : not working (not a number but a string)-->
+
+
 	<include location="keycloak.xml" optional="true" />
 	<include location="dev.xml" optional="true" onConflict="REPLACE" />
 
 	<!--  use jar: instead of wsjar: so e.g. EMFPlugin can find it resources -->
 	<classloading useJarUrls="true" />
 
-<!--     <featureManager> -->
-
-<!--         <feature>appSecurity-3.0</feature> -->
-
-<!--         <feature>jaxrs-2.1</feature> -->
-<!--         <feature>cdi-2.0</feature> -->
-<!--         <feature>mpConfig-1.4</feature> -->
-<!--         <feature>jsonp-1.1</feature> -->
-<!--         <feature>jsonb-1.0</feature> -->
-<!--         <feature>mpOpenTracing-1.3</feature> -->
-<!--         <feature>mpOpenAPI-1.1</feature> -->
-<!--         <feature>mpMetrics-2.3</feature> -->
-
-<!--     </featureManager> -->
 
 	<featureManager>
-<!-- 		<feature>jakartaee-8.0</feature> -->
-<!--  werkt: -->
-<!-- 		<feature>servlet-4.0</feature> -->
-<!-- 		<feature>webProfile-8.0</feature> -->
-<!-- 		<feature>microProfile-4.0</feature> -->
-<!-- 		<feature>openIDConnectClient-1.0</feature> -->
 
-<!--  testen -->
 		<feature>appSecurity-3.0</feature>
 		<feature>beanValidation-2.0</feature>
 		<feature>cdi-2.0</feature>
 		<feature>jaxrs-2.1</feature>
-		<feature>jsp-2.3</feature> <!-- important as openIDConnectClient with otherwise throw an exception as it requires jsp-2.2 -->
+		<feature>jsp-2.3</feature> <!-- important as openIDConnectClient with
+		otherwise throw an exception as it requires jsp-2.2 -->
 		<feature>mpConfig-2.0</feature>
 		<feature>mpHealth-3.0</feature>
 		<feature>mpJwt-1.2</feature>
 		<feature>mpMetrics-3.0</feature>
 		<feature>mpOpenAPI-2.0</feature>
 		<feature>openIDConnectClient-1.0</feature>
+
+		<!-- next few are for geographical persistance -->
+		<feature>jdbc-4.3</feature>
+		<!-- only use the JPA container code, not the default ORM provider (EclipseLink) as it does not support spatial queries -->
+		<feature>jpaContainer-2.2</feature> 
+		<feature>bells-1.0</feature>
+
 	</featureManager>
 
-	<httpAccessLogging id="accessLogging" logFormat='%h %u %{t}W "%r" %s %b %D'/> <!--  logFormat='%h %u %{t}W "%r" %s %b' -->
-    <httpEndpoint id="defaultHttpEndpoint"
-    			  host="*"
-                  httpPort="9080"
-                  httpsPort="9443" 
-                  accessLoggingRef="accessLogging"/>
+	<httpAccessLogging id="accessLogging" logFormat='%h %u %{t}W "%r" %s %b %D' /> <!--
+	logFormat='%h %u %{t}W "%r" %s %b' -->
+	<httpEndpoint id="defaultHttpEndpoint"
+		host="*"
+		httpPort="9080"
+		httpsPort="9443"
+		accessLoggingRef="accessLogging" />
 
-    <webApplication location="${project.name}.war" contextRoot="/">
-        <classloader apiTypeVisibility="+third-party" />
-		 <application-bnd>
-		 	<!--  Map the cdo_read group name from keycloak on the cdo_read security role -->
-		 	<!--  This is used in web.xml to secure the static html files served by liberty by using keycloak -->
+	<webApplication location="${project.name}.war" contextRoot="/">
+		<!-- to directly reference hibernate APIs in the app, a shared library classloader is required, with same visibility-->
+		<classloader apiTypeVisibility="+third-party" commonLibraryRef="hibernateLib" />
+		<application-bnd>
+			<!--  Map the cdo_read group name from keycloak on the cdo_read
+			security role -->
+			<!--  This is used in web.xml to secure the static html files served
+			by liberty by using keycloak -->
 			<security-role name="cdo_read">
-				<group name="cdo_read" access-id="group:${keycloak_realm_external}/cdo_read"/>
+				<group name="cdo_read"
+					access-id="group:${keycloak_realm_external}/cdo_read" />
 			</security-role>
 		</application-bnd>
-    </webApplication>
-
-    
-  
-<!-- 	    userNameAttribute="email" -->
-<!-- 	    userIdentityToCreateSubject="email"  -->
-<!--     	groupNameAttribute="groups" -->
-<!-- 	authFilterRef="dataUrl" -->
-	
-<!-- 	<jwtSso issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"  setCookieSecureFlag="false"/>             -->
-<!-- 	includeLtpaCookie="true"  jwtBuilderRef="myBuilder" -->
-<!-- 	<jwtConsumer id="defaultJWTConsumer" trustStoreRef="defaultKeyStore" trustAliasName="esdl-mapeditor" issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"/> -->
-
-<!-- As alternative to the openIdConnect config we could also use microprofile JWT, but at march 2020 then did not support
-     communicating additional claims in the JWT token besides groups. In future this should work and is simpler to configure: 
-     use jwtConsumer, jwtBuilder, and mpJWT --> 
-<!-- 	<jwtConsumer id="defaultJWTConsumer" jwkEnabled="true" jwksUri="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/certs" issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"/>
-	<jwtBuilder id="myBuilder" 
-		issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"
-		scope="openid profile email groups user_group microprofile-jwt">
-		<claims>name,aud,user_group,groups,upn</claims>
-		<audiences>cdo-mapeditor</audiences>
-	</jwtBuilder>       
-	<mpJwt id="myMpJwt" 
-		issuer="https://idm.hesi.energy/auth/realms/esdl-mapeditor"
-		jwksUri="https://idm.hesi.energy/auth/realms/esdl-mapeditor/protocol/openid-connect/certs"
-		audiences="cdo-mapeditor" 
-		/>
-    -->
-<!--     <authFilter id="dataUrl"> -->
-<!--          <requestUrl id="requestUrl" urlPattern="/store/*" matchType="contains"/> -->
-<!-- 	</authFilter> -->
-
-    <!-- This is the keystore that will be used by SSL and by JWT. -->
-    <ssl id="defaultSSLConfig" keyStoreRef="defaultKeyStore" verifyHostname="false" trustDefaultCerts="true" />
-    <keyStore id="defaultKeyStore" location="public.p12" type="PKCS12" password="${keytool_password}" 
-    	      trustDefaultCerts="true" 
-    	      pollingRate="1m" 
-    	      updateTrigger="polled" />
+	</webApplication>
 
 
-  <!-- com.ibm.ws.webcontainer*=all:HTTPChannel=all:GenericBNF=all -->
-	<logging traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all:nl.tno.*=all" consoleLogLevel="INFO" consoleFormat="SIMPLE" maxFileSize="20"/> <!-- maxFiles="8"   -->
+	<!-- This is the keystore that will be used by SSL and by JWT. -->
+	<ssl id="defaultSSLConfig" keyStoreRef="defaultKeyStore"
+		verifyHostname="false" trustDefaultCerts="true" />
+	<keyStore id="defaultKeyStore" location="public.p12" type="PKCS12"
+		password="${keytool_password}"
+		trustDefaultCerts="true" />  <!-- pollingRate="1m"  updateTrigger="polled"
+	/> -->
+
+
+	<!-- com.ibm.ws.webcontainer*=all:HTTPChannel=all:GenericBNF=all -->
+	<logging
+		traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all:nl.tno.*=all"
+		consoleLogLevel="INFO" consoleFormat="SIMPLE" maxFileSize="20" /> <!--
+	maxFiles="8"   -->
+
+	<!-- database persistence -->
+	<library id="jdbcLib">
+		<fileset dir="jdbc" includes="*.jar" />
+	</library>
+
+	<dataSource jndiName="jdbc/geometries">
+		<jdbcDriver libraryRef="jdbcLib"   />
+		<properties serverName="${postgres_host}" portNumber="5432"
+			databaseName="esdl_geometries"
+			user="${postgres_user}" password="${postgres_password}" />
+	</dataSource>
+
+	<library id="hibernateLib" apiTypeVisibility="+third-party">
+		<fileset dir="${shared.resource.dir}/hibernate" includes="*.jar" />
+	</library>
+
+	<!-- register hibernate in the liberty runtime -->
+	<!-- Making a 'bell' for the library will register any META-INF/services in the referenced library with the Liberty runtime -->
+	<bell libraryRef="hibernateLib" />
 
 
 </server>
