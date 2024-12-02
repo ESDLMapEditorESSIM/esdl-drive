@@ -10,8 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.TreeSet;
 
-import javax.json.bind.annotation.JsonbPropertyOrder;
-import javax.validation.constraints.NotNull;
+import jakarta.json.bind.annotation.JsonbPropertyOrder;
+import jakarta.validation.constraints.NotNull;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;

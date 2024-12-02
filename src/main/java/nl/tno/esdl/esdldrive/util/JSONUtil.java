@@ -1,7 +1,7 @@
 package nl.tno.esdl.esdldrive.util;
 
-import javax.json.Json;
-import javax.json.JsonObject;
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
 
 public class JSONUtil {
 	public static JsonObject getErrorAsJson(String reason) {

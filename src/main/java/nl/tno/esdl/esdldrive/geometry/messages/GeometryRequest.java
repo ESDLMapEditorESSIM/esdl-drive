@@ -1,6 +1,6 @@
 package nl.tno.esdl.esdldrive.geometry.messages;
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 

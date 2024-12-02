@@ -1,5 +1,13 @@
 package nl.tno.esdl.esdldrive.geometry.processing;
 
+import static org.geolatte.geom.builder.DSL.g;
+import static org.geolatte.geom.builder.DSL.linestring;
+import static org.geolatte.geom.builder.DSL.point;
+import static org.geolatte.geom.builder.DSL.polygon;
+import static org.geolatte.geom.builder.DSL.ring;
+import static org.geolatte.geom.crs.CoordinateReferenceSystems.WGS84;
+
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,6 +16,10 @@ import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.revision.CDORevision;
 import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.ecore.EObject;
+import org.geolatte.geom.G2D;
+import org.geolatte.geom.Geometries;
+import org.geolatte.geom.Point;
+import org.geolatte.geom.builder.DSL.LinearRingToken;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -53,7 +65,7 @@ public class ConvertEnergySystemToGeometryAssets {
 			if (obj instanceof esdl.Geometry /*&& obj.eContainer() != null && !(obj.eContainer() instanceof esdl.Geometry) */ ) {
 				esdl.Geometry esdlGeometry = (esdl.Geometry) obj;
 				System.out.println("Handling " + obj.eContainer());
-				Geometry geometry = createJSTGeometry(esdlGeometry);
+				org.geolatte.geom.Geometry<G2D> geometry = createGeoLatteGeometry(esdlGeometry);
 				if (geometry == null) {
 					continue; // skip this assets as it has an invalid/wrong geometry
 				}
@@ -154,6 +166,66 @@ public class ConvertEnergySystemToGeometryAssets {
 		return null;
 	}
 
+	/**
+	 * 
+	 * @param esdlGeometry
+	 * @return JST Geometry or null if not in the correct CRS/SRID (e.g. Simple CRS for assets in buildings/compound assets)
+	 */
+	private static org.geolatte.geom.Geometry<G2D> createGeoLatteGeometry(esdl.Geometry esdlGeometry) {
+		String crs = esdlGeometry.getCRS();
+		if (crs == null || crs.equalsIgnoreCase("WGS84") || crs.equalsIgnoreCase("4326") || crs.equals("")) { 
+			if (esdlGeometry instanceof esdl.Point) {
+				esdl.Point esdlPoint = (esdl.Point) esdlGeometry;
+				Point<G2D> point = point(WGS84,g(esdlPoint.getLon(), esdlPoint.getLat()));
+				return point;
+			} else if (esdlGeometry instanceof esdl.Line) {
+				esdl.Line line = (esdl.Line) esdlGeometry;
+				return createGeoLatteLineString(line);
+			} else if (esdlGeometry instanceof esdl.Polygon) {
+				esdl.Polygon polygon = (esdl.Polygon) esdlGeometry;
+				return createGeoLattePolygon(polygon);
+			} else if (esdlGeometry instanceof esdl.MultiLine) {
+				esdl.MultiLine multiLine = (esdl.MultiLine) esdlGeometry;
+				org.geolatte.geom.LineString<G2D> lines[] = new org.geolatte.geom.LineString[multiLine.getLine().size()];
+				for (int i=0;i<multiLine.getLine().size(); i++) {
+					lines[i] = createGeoLatteLineString(multiLine.getLine().get(i));
+				}
+				return Geometries.mkMultiLineString(lines);
+			} else if (esdlGeometry instanceof esdl.MultiPolygon) {
+				esdl.MultiPolygon multiPolygon = (esdl.MultiPolygon) esdlGeometry;
+				org.geolatte.geom.Polygon<G2D> polygons[] = new org.geolatte.geom.Polygon[multiPolygon.getPolygon().size()];
+				for (int i=0;i<multiPolygon.getPolygon().size(); i++) {
+					polygons[i] = createGeoLattePolygon(multiPolygon.getPolygon().get(i));
+				}
+				return  Geometries.mkMultiPolygon(polygons);
+				// TODO: wkt and wkb
+//			} else if (esdlGeometry instanceof esdl.WKT) {
+//				esdl.WKT wkt = (esdl.WKT) esdlGeometry;
+//				try {
+//					return WKT_READER.read(wkt.getValue());
+//				} catch (ParseException e) {
+//					e.printStackTrace();
+//					return null;
+//				}
+//			} else if (esdlGeometry instanceof esdl.WKB) {
+//				esdl.WKB wkb = (esdl.WKB) esdlGeometry;
+//				try {
+//					return WKB_READER.read(wkb.getValue().getBytes(StandardCharsets.UTF_8));
+//				} catch (ParseException e) {
+//					e.printStackTrace();
+//					return null;
+//				}
+			} else {
+				System.out.println("esdl.Geometrytype " + esdlGeometry + " not supported yet");
+			}
+		} else if (crs.equalsIgnoreCase("simple")) {
+			// ESDL MapEditor uses 'Simple' (x,y) coordinates for assets in buildings or compound assets
+			// return null to indicate this
+			return null;
+		}
+		return null;
+	}
+	
 
 	private static Polygon createPolygon(esdl.Polygon polygon) {
 		SubPolygon exterior = polygon.getExterior();
@@ -171,6 +243,28 @@ public class ConvertEnergySystemToGeometryAssets {
 	private static LineString createLineString(esdl.Line line) {
 		Coordinate[] coords = line.getPoint().stream().map(p -> new Coordinate(p.getLat(), p.getLon(), p.getElevation())).toArray(Coordinate[]::new);
 		return WGS84_GEOMETRY_FACTORY.createLineString(coords);
+		
+	}
+	
+	
+	@SuppressWarnings("unchecked")
+	private static org.geolatte.geom.Polygon<G2D> createGeoLattePolygon(esdl.Polygon polygon) {
+		SubPolygon exterior = polygon.getExterior();
+		ArrayList<LinearRingToken<G2D>> tokens = new ArrayList<>();
+		G2D[] ext_points = exterior.getPoint().stream().map(p -> g(p.getLon(), p.getLat())).toArray(G2D[]::new);
+		LinearRingToken<G2D> shell = ring(ext_points);
+		tokens.add(shell);
+		for (int i = 0; i< polygon.getInterior().size(); i++) {
+			SubPolygon interior = polygon.getInterior().get(i);
+			G2D[] int_coords = interior.getPoint().stream().map( p -> g(p.getLon(), p.getLat()) ).toArray(G2D[]::new);
+			tokens.add(ring(int_coords));
+		}
+		return polygon(WGS84, tokens.stream().toArray(size -> (LinearRingToken<G2D>[]) Array.newInstance(tokens.get(0).getClass().getComponentType(), size)));
+	}
+	private static org.geolatte.geom.LineString<G2D> createGeoLatteLineString(esdl.Line line) {
+		//linestring(WGS84,g(4.43,53.21),g(4.44,53.20),g(4.45,53.19)
+		G2D[] coords = line.getPoint().stream().map(p -> g(p.getLon(), p.getLat())).toArray(G2D[]::new);
+		return linestring(WGS84, coords);
 		
 	}
 

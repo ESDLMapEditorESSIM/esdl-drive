@@ -2,10 +2,10 @@ package nl.tno.esdl.esdldrive.geometry.dao;
 
 import java.util.List;
 
-import javax.enterprise.context.RequestScoped;
-import javax.persistence.EntityManager;
-import javax.persistence.NoResultException;
-import javax.persistence.PersistenceContext;
+import jakarta.enterprise.context.RequestScoped;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
+import jakarta.persistence.PersistenceContext;
 
 import nl.tno.esdl.esdldrive.geometry.entities.ESDLGeoObjects;
 
