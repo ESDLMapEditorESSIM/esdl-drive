@@ -64,7 +64,7 @@ public class ConvertEnergySystemToGeometryAssets {
 			final EObject obj = iter.next();
 			if (obj instanceof esdl.Geometry /*&& obj.eContainer() != null && !(obj.eContainer() instanceof esdl.Geometry) */ ) {
 				esdl.Geometry esdlGeometry = (esdl.Geometry) obj;
-				System.out.println("Handling " + obj.eContainer());
+				//System.out.println("Handling " + obj.eContainer());
 				org.geolatte.geom.Geometry<G2D> geometry = createGeoLatteGeometry(esdlGeometry);
 				if (geometry == null) {
 					continue; // skip this assets as it has an invalid/wrong geometry

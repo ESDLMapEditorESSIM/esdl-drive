@@ -12,7 +12,7 @@ import nl.tno.esdl.esdldrive.geometry.entities.ESDLGeoObjects;
 @RequestScoped
 public class ESDLGeoObjectsDao {
 
-	private static final int BATCH_SIZE = 100; // see also persistence.xml
+	private static final int BATCH_SIZE = 1000; // see also persistence.xml
 	
 	@PersistenceContext(name = "jpa-unit")
 	private EntityManager em;
@@ -34,14 +34,17 @@ public class ESDLGeoObjectsDao {
 	}
 	
 	public void createAllGeoObjects(List<ESDLGeoObjects> geoObjects) {
+		System.out.println("Persisting " + geoObjects.size() + " geo objects");
 		for (int i = 1; i<=geoObjects.size(); i++) {
 			if (i % BATCH_SIZE == 0) {
 				// clear entity manager cache
 				em.flush();
 				em.clear();
+				System.out.println(" ... at " + ( Math.round(i/(double)geoObjects.size()*100.0)) + " %");
 			}
 			ESDLGeoObjects entity = geoObjects.get(i-1);
-			System.out.println("Inserting: " + entity);
+			//System.out.println("Inserting: " + entity);
+			//em.setProperty("jakarta.persistence.query.timeout", 480000); // msec
 			em.persist(entity);
 		}
 	}

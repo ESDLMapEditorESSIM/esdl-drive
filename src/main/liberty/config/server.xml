@@ -107,6 +107,8 @@
 	<!-- register hibernate in the liberty runtime -->
 	<!-- Making a 'bell' for the library will register any META-INF/services in the referenced library with the Liberty runtime -->
 	<bell libraryRef="hibernateLib" />
+	
+	<transaction totalTranLifetimeTimeout="30m"/>
 
 
 </server>
