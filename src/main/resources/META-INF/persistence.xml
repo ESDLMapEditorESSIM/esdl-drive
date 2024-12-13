@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<persistence version="2.2"
-	xmlns="http://xmlns.jcp.org/xml/ns/persistence"
+<persistence version="3.0"
+	xmlns="https://jakarta.ee/xml/ns/persistence"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence http://xmlns.jcp.org/xml/ns/persistence/persistence_2_2.xsd">
+	xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence https://jakarta.ee/xml/ns/persistence/persistence_3_0.xsd">
 	<persistence-unit name="jpa-unit" transaction-type="JTA">
 		<provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
 		<jta-data-source>jdbc/geometries</jta-data-source>
@@ -15,7 +15,7 @@
             <property name="javax.persistence.schema-generation.scripts.create-target"
                       value="createDDL.ddl"/>-->
                       <!-- create, validate (for production)-->
-			<property name="hibernate.hbm2ddl.auto" value="create" />
+			<property name="hibernate.hbm2ddl.auto" value="validate" />
 <!--			<property name="hibernate.show_sql" value="true" />-->
 			<property name="hibernate.hbm2ddl.charset_name" value="UTF-8" />
 <!--			<property name="jakarta.persistence.jdbc.url" value="postgres://drive@password:localhost:5432/esdl_geometries" />-->

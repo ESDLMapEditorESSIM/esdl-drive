@@ -160,6 +160,13 @@
 			<version>${postgresql.version}</version>
 			<scope>provided</scope>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.geolatte/geolatte-geojson -->
+		<dependency>  <!-- depends on hibernate-spatial geolatte dependency! -->
+		    <groupId>org.geolatte</groupId>
+		    <artifactId>geolatte-geojson</artifactId>
+		    <version>1.9.1</version>
+		</dependency>
+
 		<!--		<dependency>-->
 		<!--			<groupId>io.github.sebasbaumh</groupId>-->
 		<!--			<artifactId>postgis-java-ng</artifactId>-->

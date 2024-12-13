@@ -30,6 +30,7 @@ import nl.tno.esdl.esdldrive.geometry.dao.ESDLGeoObjectsDao;
 import nl.tno.esdl.esdldrive.geometry.entities.ESDLGeoObjects;
 import nl.tno.esdl.esdldrive.geometry.messages.GeometryRequest;
 import nl.tno.esdl.esdldrive.geometry.processing.ConvertEnergySystemToGeometryAssets;
+import nl.tno.esdl.esdldrive.geometry.processing.GeoJSONConverter;
 import nl.tno.esdl.esdldrive.util.JSONUtil;
 
 @RequestScoped
@@ -69,8 +70,12 @@ public class GeometryResource {
 			esdl.EnergySystem energySystem = (esdl.EnergySystem) contents;
 			String id = energySystem.getId();
 			// query geom database
+			System.out.println("Retrieving geometries for " + energySystem.getName() + "(id=" + energySystem.getId() + ")");
 			List<ESDLGeoObjects> assets = assetDao.findAssets(id);
-			return Response.ok(assets).build();
+			System.out.println("Converting these geometries to GeoJSon.");
+			String geojson = GeoJSONConverter.convert(assets);
+			System.out.println("Sending GeoJson to client.");
+			return Response.ok(geojson).build();
 			// if not found, generate geometries
 		} else {
 			return Response.status(Status.BAD_REQUEST).entity(JSONUtil.getErrorAsJson("Specified path is not an EnergySystem.")).build();

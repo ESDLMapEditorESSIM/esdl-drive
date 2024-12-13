@@ -119,11 +119,11 @@ public class ESDLGeoObjects implements Serializable {
 	}
 
 
-	public Geometry getGeometry() {
+	public Geometry<G2D> getGeometry() {
 		return geometry;
 	}
 
-	public void setGeometry(Geometry geometry) {
+	public void setGeometry(Geometry<G2D> geometry) {
 		this.geometry = geometry;
 	}
 

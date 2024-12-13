@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<server description="${project.name}">
+<server xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:noNamespaceSchemaLocation="../../../../server_xml.xsd" description="${project.name}">
 
-	<config monitorInterval="10s" />
+<!--	<config monitorInterval="10s" />-->
 
 	<!--  These variable can be overriden by Env variables, e.g. KEYCLOAK_REALM -->
 	<!-- keycloak_realm URI, accessible by this service -->
@@ -24,11 +25,11 @@
 	<include location="dev.xml" optional="true" onConflict="REPLACE" />
 
 	<!--  use jar: instead of wsjar: so e.g. EMFPlugin can find it resources -->
-	<classloading useJarUrls="true" />
+	<classloading useJarUrls="true"  />
 
 
 	<featureManager>
-
+		<feature>localConnector-1.0</feature>  <!-- for generation server.xsd and local JMX connection-->
 		<feature>appSecurity-5.0</feature>
 		<feature>jsonb-3.0</feature>
 <!--		<feature>beanValidation-3.0</feature>-->

@@ -9,11 +9,12 @@ import static org.geolatte.geom.crs.CoordinateReferenceSystems.WGS84;
 
 import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.emf.cdo.CDOObject;
-import org.eclipse.emf.cdo.common.revision.CDORevision;
 import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.ecore.EObject;
 import org.geolatte.geom.G2D;
@@ -47,6 +48,8 @@ public class ConvertEnergySystemToGeometryAssets {
 	private static final WKTReader WKT_READER = new WKTReader(WGS84_GEOMETRY_FACTORY);
 	private static final WKBReader WKB_READER = new WKBReader(WGS84_GEOMETRY_FACTORY);
 	
+	private static final String regexp_for_boundary_service = "(WK|BU|GM|PV|ES)\\d+";
+	
 	public static List<ESDLGeoObjects> convert(EnergySystem energySystem) {
 		String es_id = energySystem.getId();
 		if (es_id == null || es_id.isBlank()) {
@@ -56,9 +59,11 @@ public class ConvertEnergySystemToGeometryAssets {
 		
 		if (energySystem instanceof CDOObject) {
 			// fetch as much as possible without a lot of round trips to the cdo-server
-			energySystem.cdoPrefetch(CDORevision.DEPTH_INFINITE );
+			System.out.println("Prefetching model from CDO...");
+			//energySystem.cdoPrefetch(CDORevision.DEPTH_INFINITE );
 		}
-		
+		System.out.println("Processing energy system...");
+		LocalDateTime start = LocalDateTime.now();
 		final TreeIterator<EObject> iter = energySystem.eAllContents();
 		while (iter.hasNext()) {
 			final EObject obj = iter.next();
@@ -82,13 +87,27 @@ public class ConvertEnergySystemToGeometryAssets {
 					objects.add(geo_asset);
 					iter.prune();  // skip sub geometries ( e.g. points of a line) as we handled this one
 				}
+				
 				//area
 				
 				//potential
 				
 				//note.mapLocation
+			} else if (obj instanceof esdl.Area) {
+				esdl.Area area = (esdl.Area) obj;		
+				System.out.println("Area: " + area.getName()+ "(id=" + area.getId() + ")" );
+				if (area.getGeometry() == null /* && area.getType().equals(esdl.AreaTypeEnum) */ && area.getId().matches(regexp_for_boundary_service)) {
+					System.out.println("AREA Geometry match for " + area.getName());
+					String id = area.getId();
+					if (id.startsWith("GM")) {
+						// query boundaries...
+					}
+				}
+				
 			}
 		}
+		LocalDateTime end = LocalDateTime.now();
+		System.out.println("... done processing energy system in " + Duration.between(start, end));
 		return objects;
 	}
 
@@ -114,6 +133,7 @@ public class ConvertEnergySystemToGeometryAssets {
 	 * @param esdlGeometry
 	 * @return JST Geometry or null if not in the correct CRS/SRID (e.g. Simple CRS for assets in buildings/compound assets)
 	 */
+	@SuppressWarnings("unused")
 	private static Geometry createJSTGeometry(esdl.Geometry esdlGeometry) {
 		String crs = esdlGeometry.getCRS();
 		if (crs == null || crs.equalsIgnoreCase("WGS84") || crs.equalsIgnoreCase("4326") || crs.equals("")) { 
@@ -186,6 +206,7 @@ public class ConvertEnergySystemToGeometryAssets {
 				return createGeoLattePolygon(polygon);
 			} else if (esdlGeometry instanceof esdl.MultiLine) {
 				esdl.MultiLine multiLine = (esdl.MultiLine) esdlGeometry;
+				@SuppressWarnings("unchecked")
 				org.geolatte.geom.LineString<G2D> lines[] = new org.geolatte.geom.LineString[multiLine.getLine().size()];
 				for (int i=0;i<multiLine.getLine().size(); i++) {
 					lines[i] = createGeoLatteLineString(multiLine.getLine().get(i));
@@ -193,6 +214,7 @@ public class ConvertEnergySystemToGeometryAssets {
 				return Geometries.mkMultiLineString(lines);
 			} else if (esdlGeometry instanceof esdl.MultiPolygon) {
 				esdl.MultiPolygon multiPolygon = (esdl.MultiPolygon) esdlGeometry;
+				@SuppressWarnings("unchecked")
 				org.geolatte.geom.Polygon<G2D> polygons[] = new org.geolatte.geom.Polygon[multiPolygon.getPolygon().size()];
 				for (int i=0;i<multiPolygon.getPolygon().size(); i++) {
 					polygons[i] = createGeoLattePolygon(multiPolygon.getPolygon().get(i));
@@ -259,7 +281,7 @@ public class ConvertEnergySystemToGeometryAssets {
 			G2D[] int_coords = interior.getPoint().stream().map( p -> g(p.getLon(), p.getLat()) ).toArray(G2D[]::new);
 			tokens.add(ring(int_coords));
 		}
-		return polygon(WGS84, tokens.stream().toArray(size -> (LinearRingToken<G2D>[]) Array.newInstance(tokens.get(0).getClass().getComponentType(), size)));
+		return polygon(WGS84, tokens.stream().toArray(size -> (LinearRingToken<G2D>[]) Array.newInstance(tokens.get(0).getClass(), size)));
 	}
 	private static org.geolatte.geom.LineString<G2D> createGeoLatteLineString(esdl.Line line) {
 		//linestring(WGS84,g(4.43,53.21),g(4.44,53.20),g(4.45,53.19)
