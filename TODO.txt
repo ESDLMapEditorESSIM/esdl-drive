@@ -4,5 +4,75 @@
 4.  ESDL update
 5.  support Areas without geometries for Province, Municipality etc.
 6.  Increase performance of loading/parsing an ESDL, see https://www.eclipse.org/forums/index.php/t/1109502/
-7.  SLF4J logging
+
+*7.  SLF4J logging*
+
+java.lang.NoClassDefFoundError: org.slf4j.impl.StaticLoggerBinder
+
 8. ESDL type colom toevoegen: Potential, Asset, Area
+9.  create init SQL met create extension postgis voor esdl_geometries database
+10. Connections!!!
+
+
+
+SELECT cid, ST_Envelope(ST_Collect(geometry)) AS cluster_geom, array_agg(id) AS ids_in_cluster FROM (
+    SELECT id, capability_type, ST_ClusterKMeans(st_transform(geometry, 28992), 50, 100000) over () AS cid, geometry
+    FROM esdl_geo_objects ego) sq
+GROUP BY cid;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-----
+
+SELECT cid, ST_Centroid(ST_Collect(geometry)) AS cluster_geom, array_agg(id) AS ids_in_cluster FROM (
+    SELECT id, capability_type, ST_ClusterDBSCAN(st_transform(geometry, 28992), eps => 2000, minpoints => 2) over () AS cid, geometry
+    FROM esdl_geo_objects ego) sq
+GROUP BY cid;
+
+
+SELECT cid, ST_Envelope(ST_Collect(geometry)) AS cluster_geom, array_agg(id) AS ids_in_cluster FROM (
+    SELECT id, capability_type, ST_ClusterKMeans(st_transform(geometry, 28992), 50, 100000) over () AS cid, geometry
+    FROM esdl_geo_objects ego) sq
+GROUP BY cid;
+
+
+select cid, capability_type, ST_Centroid(ST_Collect(geometry)) AS cluster_geom from (
+SELECT id, capability_type, ST_ClusterDBSCAN(st_transform(geometry, 28992), eps => 2000, minpoints => 5) over (PARTITION BY capability_type ORDER BY id) AS cid, geometry
+    FROM esdl_geo_objects ego) sq
+group by cid, capability_type
+
+SELECT id, capability_type, ST_ClusterDBSCAN(geometry, eps => 0.03, minpoints => 10) over (PARTITION BY capability_type ORDER BY id) AS cid, geometry
+    FROM esdl_geo_objects ego
+
+SELECT * FROM
+  (SELECT id, capability_type, ST_ClusterDBSCAN(geometry, eps := 0.005, minPoints := 5)
+     OVER (PARTITION BY capability_type ORDER BY id) AS cluster_id
+   FROM esdl_geo_objects ego) sq
+WHERE cluster_id = 4;
+
+
+SELECT * FROM
+  (SELECT id, capability_type, ST_ClusterDBSCAN(geometry, eps := 0.005, minPoints := 10)
+   OVER (PARTITION BY capability_type ORDER BY id) AS cluster_id
+   FROM esdl_geo_objects ego) sq;

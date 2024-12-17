@@ -6,7 +6,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nl.tno.esdl</groupId>
 	<artifactId>esdl-drive</artifactId>
-	<version>24.06</version>
+	<version>24.12</version>
 	<packaging>war</packaging>
 	<properties>
 		<openliberty.maven.version>3.11.1</openliberty.maven.version>
@@ -136,17 +136,37 @@
 		</dependency>
 		<!-- for EMF Compare, check for update in july 2022 to get rid of this
 		log4j dependency -->
-<!--		<dependency>-->
-<!--			<groupId>log4j</groupId>-->
-<!--			<artifactId>log4j</artifactId>-->
-<!--			<version>1.2.17</version>-->
-<!--		</dependency>-->
-<!--				 https://mvnrepository.com/artifact/org.slf4j/slf4j-simple -->
-<!--		<dependency>-->
-<!--			<groupId>org.slf4j</groupId>-->
-<!--			<artifactId>slf4j-simple</artifactId>-->
-<!--			<version>2.0.11</version>-->
-<!--		</dependency>-->
+		<!--		<dependency>-->
+		<!--			<groupId>log4j</groupId>-->
+		<!--			<artifactId>log4j</artifactId>-->
+		<!--			<version>1.2.17</version>-->
+		<!--		</dependency>-->
+		<!--				 https://mvnrepository.com/artifact/org.slf4j/slf4j-simple -->
+		<!--		<dependency>-->
+		<!--			<groupId>org.slf4j</groupId>-->
+		<!--			<artifactId>slf4j-simple</artifactId>-->
+		<!--			<version>2.0.11</version>-->
+		<!--		</dependency>-->
+		<!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-api -->
+		<!-- Used by geolatte and Hibernate ORM -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>2.0.16</version>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-core</artifactId>
+			<version>1.5.12</version>
+		</dependency>
+		<!-- https://mvnrepository.com/artifact/ch.qos.logback/logback-classic -->
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.5.12</version>
+			<scope>test</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
@@ -162,9 +182,9 @@
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.geolatte/geolatte-geojson -->
 		<dependency>  <!-- depends on hibernate-spatial geolatte dependency! -->
-		    <groupId>org.geolatte</groupId>
-		    <artifactId>geolatte-geojson</artifactId>
-		    <version>1.9.1</version>
+			<groupId>org.geolatte</groupId>
+			<artifactId>geolatte-geojson</artifactId>
+			<version>1.9.1</version>
 		</dependency>
 
 		<!--		<dependency>-->
@@ -172,11 +192,11 @@
 		<!--			<artifactId>postgis-java-ng</artifactId>-->
 		<!--			<version>23.2.0</version>-->
 		<!--		</dependency>-->
-<!--		<dependency>-->
-<!--			<groupId>net.postgis</groupId>-->
-<!--			<artifactId>postgis-jdbc</artifactId>-->
-<!--			<version>2024.1.0</version>-->
-<!--		</dependency>-->
+		<!--		<dependency>-->
+		<!--			<groupId>net.postgis</groupId>-->
+		<!--			<artifactId>postgis-jdbc</artifactId>-->
+		<!--			<version>2024.1.0</version>-->
+		<!--		</dependency>-->
 		<dependency>
 			<groupId>org.hibernate.orm</groupId>
 			<artifactId>hibernate-core</artifactId>
@@ -284,11 +304,11 @@
 							</dependency>
 							<!--
 							https://mvnrepository.com/artifact/net.postgis/postgis-jdbc -->
-<!--							<dependency>-->
-<!--								<groupId>net.postgis</groupId>-->
-<!--								<artifactId>postgis-jdbc</artifactId>-->
-<!--								<version>2024.1.0</version>-->
-<!--							</dependency>-->
+							<!--							<dependency>-->
+							<!--								<groupId>net.postgis</groupId>-->
+							<!--								<artifactId>postgis-jdbc</artifactId>-->
+							<!--								<version>2024.1.0</version>-->
+							<!--							</dependency>-->
 							<dependency>
 								<groupId>org.hibernate.orm</groupId>
 								<artifactId>hibernate-spatial</artifactId>

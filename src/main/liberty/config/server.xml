@@ -18,7 +18,8 @@
 	<variable name="postgres_user" defaultValue="drive" />
 	<variable name="postgres_password" defaultValue="password" />
 	<variable name="postgres_host" defaultValue="localhost" />
-	<!--<variable name="postgress_port" defaultValue="5432"/> : not working (not a number but a string)-->
+	<variable name="postgres_port" defaultValue="5432" /> 
+	 <!-- not working (not a number but a string)-->
 
 
 	<include location="keycloak.xml" optional="true" />
@@ -29,7 +30,7 @@
 
 
 	<featureManager>
-		<feature>localConnector-1.0</feature>  <!-- for generation server.xsd and local JMX connection-->
+		<!-- <feature>localConnector-1.0</feature> -->  <!-- for generation server.xsd and local JMX connection-->
 		<feature>appSecurity-5.0</feature>
 		<feature>jsonb-3.0</feature>
 <!--		<feature>beanValidation-3.0</feature>-->
@@ -96,7 +97,7 @@
 
 	<dataSource jndiName="jdbc/geometries">
 		<jdbcDriver libraryRef="jdbcLib"   />
-		<properties serverName="${postgres_host}" portNumber="5432"
+		<properties.postgresql serverName="${postgres_host}" portNumber="${postgres_port}"
 			databaseName="esdl_geometries"
 			user="${postgres_user}" password="${postgres_password}" />
 	</dataSource>
