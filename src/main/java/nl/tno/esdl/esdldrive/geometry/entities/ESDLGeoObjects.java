@@ -26,8 +26,13 @@ import jakarta.persistence.UniqueConstraint;
 )
 @NamedQuery(name = "ESDLGeoObjects.findAll", query = "SELECT a FROM ESDLGeoObjects a")
 @NamedQuery(name = "ESDLGeoObjects.findAssetsForES", query = "SELECT a FROM ESDLGeoObjects a WHERE a.energySystemId = :energySystemId")
+@NamedQuery(name = "ESDLGeoObjects.findAssetsForESFilter", query = "SELECT a FROM ESDLGeoObjects a WHERE a.energySystemId = :energySystemId AND a.assetType = :assetType")
+// use contains instead of within
+@NamedQuery(name = "ESDLGeoObjects.findAssetsForESWithin", query = "SELECT a FROM ESDLGeoObjects a WHERE a.energySystemId = :energySystemId AND within(a.geometry, envelope(:bbox))")
+@NamedQuery(name = "ESDLGeoObjects.findAssetsForESWithinFilter", query = "SELECT a FROM ESDLGeoObjects a WHERE a.energySystemId = :energySystemId AND within(a.geometry, envelope(:bbox)) AND a.assetType = :assetType")
 @NamedQuery(name = "ESDLGeoObjects.getAsset", query = "SELECT a FROM ESDLGeoObjects a WHERE a.energySystemId = :energySystemId and a.assetId = :assetId")
 @NamedQuery(name = "ESDLGeoObjects.hasEnergySystem", query = "SELECT a FROM ESDLGeoObjects a WHERE a.energySystemId = :energySystemId")
+@NamedQuery(name = "ESDLGeoObjects.deleteEnergySystem", query = "DELETE FROM ESDLGeoObjects a WHERE a.energySystemId = :energySystemId")
 public class ESDLGeoObjects implements Serializable {
 
 

@@ -1,17 +1,15 @@
 1.  geo queries aggregate
-2.  Path param beter < - issue filed
-3.  GeoJson output < -- working on opsplitsen naar esdl type
 4.  ESDL update
-5.  support Areas without geometries for Province, Municipality etc.
 6.  Increase performance of loading/parsing an ESDL, see https://www.eclipse.org/forums/index.php/t/1109502/
-
-*7.  SLF4J logging*
-
-java.lang.NoClassDefFoundError: org.slf4j.impl.StaticLoggerBinder
 
 8. ESDL type colom toevoegen: Potential, Asset, Area
 9.  create init SQL met create extension postgis voor esdl_geometries database
+
 10. Connections!!!
+11. File not found in servlet >  FFDC incident
+12. Docker: https://openliberty.io/guides/docker.html#creating-the-dockerfile
+
+
 
 
 

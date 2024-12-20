@@ -29,7 +29,7 @@ public class GeometryParserTest {
 		resource.load(null);
 		System.out.println("done.");
 		EnergySystem ecw = (EnergySystem)resource.getContents().get(0);
-		List<ESDLGeoObjects> geoObjects = ConvertEnergySystemToGeometryAssets.convert(ecw);
+		List<ESDLGeoObjects> geoObjects = ConvertEnergySystemToGeometryAssets.convert(ecw, "http://geis-01.hesi.energy:4004/");
 		for (ESDLGeoObjects o : geoObjects) {
 			System.out.println(o.getName() + " " + o.getGeometry());
 			

@@ -12,7 +12,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.common.util.TreeIterator;
@@ -35,8 +39,11 @@ import org.locationtech.jts.io.WKTReader;
 import esdl.EnergySystem;
 import esdl.SubPolygon;
 import nl.tno.esdl.esdldrive.geometry.entities.ESDLGeoObjects;
+import nl.tno.esdl.esdldrive.geometry.messages.BoundingBox;
 
 public class ConvertEnergySystemToGeometryAssets {
+	
+	private static Logger log = Logger.getLogger(ConvertEnergySystemToGeometryAssets.class.getClass().getName());
 	
 	/**
 	 *  WGS84/EPSG:4326 (Lat/Lng)
@@ -50,7 +57,11 @@ public class ConvertEnergySystemToGeometryAssets {
 	
 	private static final String regexp_for_boundary_service = "(WK|BU|GM|PV|ES)\\d+";
 	
-	public static List<ESDLGeoObjects> convert(EnergySystem energySystem) {
+	
+	
+	public static List<ESDLGeoObjects> convert(EnergySystem energySystem, String boundary_service_uri) {
+		BoundaryService boundaryService = new BoundaryService(boundary_service_uri);
+		Set<String> uniqueAreas = new HashSet<>();
 		String es_id = energySystem.getId();
 		if (es_id == null || es_id.isBlank()) {
 			throw new IllegalArgumentException("Input Energy system has no ID");
@@ -59,10 +70,10 @@ public class ConvertEnergySystemToGeometryAssets {
 		
 		if (energySystem instanceof CDOObject) {
 			// fetch as much as possible without a lot of round trips to the cdo-server
-			System.out.println("Prefetching model from CDO...");
-			//energySystem.cdoPrefetch(CDORevision.DEPTH_INFINITE );
+			log.info("Prefetching model from CDO...");
+			energySystem.cdoPrefetch(2 /* CDORevision.DEPTH_INFINITE */);
 		}
-		System.out.println("Processing energy system...");
+		log.info("Processing energy system...");
 		LocalDateTime start = LocalDateTime.now();
 		final TreeIterator<EObject> iter = energySystem.eAllContents();
 		while (iter.hasNext()) {
@@ -83,31 +94,47 @@ public class ConvertEnergySystemToGeometryAssets {
 				}
 				if (container instanceof esdl.Area) {
 					esdl.Area area = (esdl.Area) container;
-					ESDLGeoObjects geo_asset = new ESDLGeoObjects(es_id, area.getId(), area.getName(), area.eClass().getName(), null, geometry );
-					objects.add(geo_asset);
+					if (uniqueAreas.add(area.getId())) {
+						// don't add if area id is already found, sometimes the case with ETM data
+						ESDLGeoObjects geo_asset = new ESDLGeoObjects(es_id, area.getId(), area.getName(), area.eClass().getName(), null, geometry );
+						objects.add(geo_asset);
+					}
 					iter.prune();  // skip sub geometries ( e.g. points of a line) as we handled this one
 				}
 				
-				//area
-				
+			
 				//potential
 				
 				//note.mapLocation
 			} else if (obj instanceof esdl.Area) {
 				esdl.Area area = (esdl.Area) obj;		
-				System.out.println("Area: " + area.getName()+ "(id=" + area.getId() + ")" );
-				if (area.getGeometry() == null /* && area.getType().equals(esdl.AreaTypeEnum) */ && area.getId().matches(regexp_for_boundary_service)) {
-					System.out.println("AREA Geometry match for " + area.getName());
-					String id = area.getId();
-					if (id.startsWith("GM")) {
-						// query boundaries...
-					}
-				}
+				log.info("Area: " + area.getName() + "(id=" + area.getId() + ")" );
+				if (uniqueAreas.add(area.getId())) {
+					// don't add if area id is already found, sometimes the case with ETM data
 				
+					if (area.getGeometry() == null && area.getId().matches(regexp_for_boundary_service) && area.getScope() != null) {
+						log.info("AREA Geometry match for " + area.getName());
+						String id = area.getId();
+						LocalDateTime startBoundary = LocalDateTime.now();
+						org.geolatte.geom.Geometry<G2D> geometry = boundaryService.getBoundaryFromBoundaryService(BoundaryService.DEFAULT_BOUNDARIES_YEAR, area.getScope(), id);
+						LocalDateTime endBoundary = LocalDateTime.now();
+						log.log(Level.INFO, "Boundary service request in " + Duration.between(startBoundary, endBoundary));
+						if (geometry != null) {
+							ESDLGeoObjects geo_asset = new ESDLGeoObjects(es_id, area.getId(), area.getName(), area.eClass().getName(), null, geometry);
+							objects.add(geo_asset);
+						} else {
+							log.warning("Could not get boundary information from the boundary service for area " + area.getName());
+						}
+						
+					}
+				} else {
+					log.warning("Can't add Area " + area.getName() + "(" + area.getId() + ") as this ID is already present" );
+				}
+				// don't iter.prune() here, as this area contains assets that still need to be processed.
 			}
 		}
 		LocalDateTime end = LocalDateTime.now();
-		System.out.println("... done processing energy system in " + Duration.between(start, end));
+		log.info("... done processing energy system in " + Duration.between(start, end));
 		return objects;
 	}
 
@@ -287,6 +314,12 @@ public class ConvertEnergySystemToGeometryAssets {
 		//linestring(WGS84,g(4.43,53.21),g(4.44,53.20),g(4.45,53.19)
 		G2D[] coords = line.getPoint().stream().map(p -> g(p.getLon(), p.getLat())).toArray(G2D[]::new);
 		return linestring(WGS84, coords);
+		
+	}
+	
+	public static org.geolatte.geom.LineString<G2D> createGeoLatteLineString(BoundingBox bbox) {
+		//linestring(WGS84,g(4.43,53.21),g(4.44,53.20),g(4.45,53.19)
+		return linestring(WGS84, g(bbox.getLon1(), bbox.getLat1()), g(bbox.getLon2(), bbox.getLat2()));
 		
 	}
 

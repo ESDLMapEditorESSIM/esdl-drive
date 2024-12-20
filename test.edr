@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="ASCII"?>
+<edr:EnergyDataDescription xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:edr="http://www.tno.nl/edr" xmlns:esdl="http://www.tno.nl/esdl" title="ETM WindTurbine">
+  <esdl xsi:type="esdl:WindTurbine" name="ETM WindTurbine 3MW" type="WIND_ON_COAST"/>
+  <image contentType="image/png"/>
+</edr:EnergyDataDescription>
