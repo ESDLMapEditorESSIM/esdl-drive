@@ -168,6 +168,11 @@ public class CDOManager {
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
 	private static final ObjectMapper jsonMapper = EMFModule.setupDefaultMapper();
 	
+	/**
+	 * TODO: have a look at https://github.com/epsilonlabs/emc-cdo/blob/master/org.eclipse.epsilon.emc.cdo/src/org/eclipse/epsilon/emc/cdo/CDOModel.java
+	 * to improve read speed.
+	 */
+	
 	
 
 	public CDOManager() {
