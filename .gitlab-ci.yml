@@ -16,7 +16,7 @@ image: maven:3.9-ibm-semeru-21-jammy
 .build-script:
   before_script:
     - apt-get update && apt-get install -y libatomic1 docker.io
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_TNO_REGISTRY
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $REGISTRY
 
 
 
@@ -39,8 +39,7 @@ build-and-push-esdl-drive:
     - echo "Commit ref name $COMMIT_TAG"
     - mvn -DskipTests clean package
     - mvn liberty:create
-    - docker pull $IMAGE:$BRANCH || true
-    - docker build --build-arg git_commit=$TAG . -f Dockerfile --cache-from $IMAGE:$BRANCH -t $IMAGE:$TAG -t $IMAGE:$BRANCH
+    - docker build --build-arg git_commit=$TAG . -f Dockerfile -t $IMAGE:$COMMIT_TAG -t $IMAGE:$BRANCH
     - docker push $IMAGE:$TAG
     - docker push $IMAGE:$BRANCH
 
