@@ -28,18 +28,17 @@ image: maven:3.9-ibm-semeru-21-jammy
 #|______/   \______/  |__| |_______||_______/
 
 
-	  
 build-and-push-esdl-drive:
   stage: build
   variables:
-	IMAGE: $IMAGE_BASE/esdl-drive
+    IMAGE: $IMAGE_BASE/esdl-drive
   extends: .build-script
   script:
-	- cd $CI_PROJECT_DIR
-	- echo Commit ref name: $COMMIT_REF_NAME
-	- echo Commit ref name: $COMMIT_TAG
-	- mvn -DskipTests clean package
-	- mvn liberty:create
+    -  cd $CI_PROJECT_DIR
+    - echo "Commit ref name $COMMIT_REF_NAME"
+    - echo "Commit ref name $COMMIT_TAG"
+    - mvn -DskipTests clean package
+    - mvn liberty:create
     - docker pull $IMAGE:$BRANCH || true
     - docker build --build-arg git_commit=$TAG . -f Dockerfile --cache-from $IMAGE:$BRANCH -t $IMAGE:$TAG -t $IMAGE:$BRANCH
     - docker push $IMAGE:$TAG
