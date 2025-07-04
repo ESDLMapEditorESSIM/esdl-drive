@@ -6,7 +6,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nl.tno.esdl</groupId>
 	<artifactId>esdl-drive</artifactId>
-	<version>25.05</version>
+	<version>25.07</version>
 	<packaging>war</packaging>
 	<properties>
 		<openliberty.maven.version>3.11.1</openliberty.maven.version>
@@ -221,29 +221,31 @@
 			<version>4.12</version>
 			<scope>test</scope>
 		</dependency>
-		<!--		<dependency>-->
-		<!--			<groupId>org.glassfish.jersey.core</groupId>-->
-		<!--			<artifactId>jersey-client</artifactId>-->
-		<!--			<version>2.35</version>-->
-		<!--			<scope>test</scope>-->
-		<!--		</dependency>-->
-		<!--		<dependency>-->
-		<!--			<groupId>org.glassfish.jersey.inject</groupId>-->
-		<!--			<artifactId>jersey-hk2</artifactId>-->
-		<!--			<version>2.35</version>-->
-		<!--			<scope>test</scope>-->
-		<!--		</dependency>-->
-		<!--		<dependency>-->
-		<!--			<groupId>org.glassfish.jersey.media</groupId>-->
-		<!--			<artifactId>jersey-media-json-binding</artifactId>-->
-		<!--			<version>2.35</version>-->
-		<!--			<scope>test</scope>-->
-		<!--		</dependency>-->
-		<!--		<dependency>-->
-		<!--			<groupId>org.glassfish.jersey.media</groupId>-->
-		<!--			<artifactId>jersey-media-json-jackson</artifactId>-->
-		<!--			<version>2.35</version>-->
-		<!--		</dependency>-->
+		<dependency>  <!-- for EDR tests rest client implementation-->
+			<groupId>org.glassfish.jersey.core</groupId>
+			<artifactId>jersey-client</artifactId>
+			<version>3.1.10</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.inject</groupId>
+			<artifactId>jersey-hk2</artifactId>
+			<version>3.1.10</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.glassfish.jersey.media</groupId>
+			<artifactId>jersey-media-json-binding</artifactId>
+			<version>3.1.10</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.glassfish.jersey.media</groupId>
+			<artifactId>jersey-media-json-jackson</artifactId>
+			<version>3.1.10</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 	<build>
 		<finalName>${final.name}</finalName>

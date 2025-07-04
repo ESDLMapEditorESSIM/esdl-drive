@@ -12,15 +12,14 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.geolatte.geom.G2D;
 import org.geolatte.geom.Geometries;
 import org.geolatte.geom.Point;
@@ -61,7 +60,7 @@ public class ConvertEnergySystemToGeometryAssets {
 	
 	public static List<ESDLGeoObjects> convert(EnergySystem energySystem, String boundary_service_uri) {
 		BoundaryService boundaryService = new BoundaryService(boundary_service_uri);
-		Set<String> uniqueAreas = new HashSet<>();
+//		Set<String> uniqueAreas = new HashSet<>();
 		String es_id = energySystem.getId();
 		if (es_id == null || es_id.isBlank()) {
 			throw new IllegalArgumentException("Input Energy system has no ID");
@@ -94,43 +93,32 @@ public class ConvertEnergySystemToGeometryAssets {
 				}
 				if (container instanceof esdl.Area) {
 					esdl.Area area = (esdl.Area) container;
-					if (uniqueAreas.add(area.getId())) {
-						// don't add if area id is already found, sometimes the case with ETM data
-						ESDLGeoObjects geo_asset = new ESDLGeoObjects(es_id, area.getId(), area.getName(), area.eClass().getName(), null, geometry );
-						objects.add(geo_asset);
-					}
-					iter.prune();  // skip sub geometries ( e.g. points of a line) as we handled this one
-				}
-				
-			
-				//potential
-				
-				//note.mapLocation
-			} else if (obj instanceof esdl.Area) {
-				esdl.Area area = (esdl.Area) obj;		
-				log.info("Area: " + area.getName() + "(id=" + area.getId() + ")" );
-				if (uniqueAreas.add(area.getId())) {
-					// don't add if area id is already found, sometimes the case with ETM data
-				
+					log.info("Area: " + area.getName() + "(id=" + area.getId() + ")" );
 					if (area.getGeometry() == null && area.getId().matches(regexp_for_boundary_service) && area.getScope() != null) {
 						log.info("AREA Geometry match for " + area.getName());
 						String id = area.getId();
 						LocalDateTime startBoundary = LocalDateTime.now();
-						org.geolatte.geom.Geometry<G2D> geometry = boundaryService.getBoundaryFromBoundaryService(BoundaryService.DEFAULT_BOUNDARIES_YEAR, area.getScope(), id);
+						org.geolatte.geom.Geometry<G2D> geom = boundaryService.getBoundaryFromBoundaryService(BoundaryService.DEFAULT_BOUNDARIES_YEAR, area.getScope(), id);
 						LocalDateTime endBoundary = LocalDateTime.now();
 						log.log(Level.INFO, "Boundary service request in " + Duration.between(startBoundary, endBoundary));
-						if (geometry != null) {
-							ESDLGeoObjects geo_asset = new ESDLGeoObjects(es_id, area.getId(), area.getName(), area.eClass().getName(), null, geometry);
+						if (geom != null) {
+							ESDLGeoObjects geo_asset = new ESDLGeoObjects(es_id, area.getId(), area.getName(), area.eClass().getName(), null, geom);
 							objects.add(geo_asset);
 						} else {
 							log.warning("Could not get boundary information from the boundary service for area " + area.getName());
 						}
 						
+					} else {
+						ESDLGeoObjects geo_asset = new ESDLGeoObjects(es_id, area.getId(), area.getName(), area.eClass().getName(), null, geometry );
+						objects.add(geo_asset);
 					}
-				} else {
-					log.warning("Can't add Area " + area.getName() + "(" + area.getId() + ") as this ID is already present" );
+					//iter.prune();  // skip sub geometries ( e.g. points of a line) as we handled this one
 				}
-				// don't iter.prune() here, as this area contains assets that still need to be processed.
+				
+			
+				//potential
+				
+				//note.mapLocation			
 			}
 		}
 		LocalDateTime end = LocalDateTime.now();
@@ -209,6 +197,8 @@ public class ConvertEnergySystemToGeometryAssets {
 			// ESDL MapEditor uses 'Simple' (x,y) coordinates for assets in buildings or compound assets
 			// return null to indicate this
 			return null;
+		} else {
+			log.warning("Unsupported CRS " + crs + ", ignoring geometry " + esdlGeometry + " of " + esdlGeometry.eContainer());
 		}
 		return null;
 	}
@@ -216,7 +206,7 @@ public class ConvertEnergySystemToGeometryAssets {
 	/**
 	 * 
 	 * @param esdlGeometry
-	 * @return JST Geometry or null if not in the correct CRS/SRID (e.g. Simple CRS for assets in buildings/compound assets)
+	 * @return Geolatte Geometry or null if not in the correct CRS/SRID (e.g. Simple CRS for assets in buildings/compound assets)
 	 */
 	private static org.geolatte.geom.Geometry<G2D> createGeoLatteGeometry(esdl.Geometry esdlGeometry) {
 		String crs = esdlGeometry.getCRS();
@@ -271,6 +261,8 @@ public class ConvertEnergySystemToGeometryAssets {
 			// ESDL MapEditor uses 'Simple' (x,y) coordinates for assets in buildings or compound assets
 			// return null to indicate this
 			return null;
+		} else {
+			log.warning("Unsupported CRS " + crs + ", ignoring geometry " + esdlGeometry + " of " + esdlGeometry.eContainer());
 		}
 		return null;
 	}
@@ -297,8 +289,14 @@ public class ConvertEnergySystemToGeometryAssets {
 	
 	
 	@SuppressWarnings("unchecked")
-	private static org.geolatte.geom.Polygon<G2D> createGeoLattePolygon(esdl.Polygon polygon) {
-		SubPolygon exterior = polygon.getExterior();
+	private static org.geolatte.geom.Polygon<G2D> createGeoLattePolygon(esdl.Polygon polygon) throws IllegalArgumentException {
+		SubPolygon exterior = polygon.getExterior();		
+		esdl.Point first =  exterior.getPoint().getFirst();
+		esdl.Point last = exterior.getPoint().getLast();
+		if (!first.equals(last)) {
+			// Sequence is not closed, add first point after last point
+			exterior.getPoint().add(EcoreUtil.copy(first));
+		}
 		ArrayList<LinearRingToken<G2D>> tokens = new ArrayList<>();
 		G2D[] ext_points = exterior.getPoint().stream().map(p -> g(p.getLon(), p.getLat())).toArray(G2D[]::new);
 		LinearRingToken<G2D> shell = ring(ext_points);

@@ -8,7 +8,7 @@ public class BoundaryServiceResponse {
 	private String name; //: "Aa en Hunze",
 
 	// as geolatte geometries deserializer are jackson based, use ObjectMapper to parse Json, 
-	// instead of the Jakarte Jsonb implementation
+	// instead of the Jakarta Jsonb implementation
 	//@JsonDeserialize(using = FeatureDeserializer.class)
 	private Geometry<?> geom; // "geom":
 	

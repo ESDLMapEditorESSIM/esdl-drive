@@ -20,7 +20,7 @@
 	<variable name="postgres_host" defaultValue="localhost" />
 	<variable name="postgres_port" defaultValue="5432" />
 	<!-- URI to Boundary service, used in the geometry endpoint to add polygons for provinces/municipalities --> 
-	<variable name="boundary_service_base_uri" value="http://geis-01.hesi.energy:4003/test/" /> 
+	<variable name="boundary_service_base_uri" value="http://geis-01.hesi.energy:4003/" /> 
 	 <!-- not working (not a number but a string)-->
 
 
