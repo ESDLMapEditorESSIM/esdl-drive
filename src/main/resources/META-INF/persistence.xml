@@ -15,7 +15,9 @@
             <property name="javax.persistence.schema-generation.scripts.create-target"
                       value="createDDL.ddl"/>-->
                       <!-- create, validate (for production)-->
-			<property name="hibernate.hbm2ddl.auto" value="update" />
+<!--            <property name="javax.persistence.schema-generation.create-script-source"
+                    value="META-INF/sql/create_postgis.sql" />-->
+			<property name="hibernate.hbm2ddl.auto" value="create" />
 <!--			<property name="hibernate.show_sql" value="true" />-->
 			<property name="hibernate.hbm2ddl.charset_name" value="UTF-8" />
 <!--			<property name="jakarta.persistence.jdbc.url" value="postgres://drive@password:localhost:5432/esdl_geometries" />-->

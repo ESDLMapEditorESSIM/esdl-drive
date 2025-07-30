@@ -14,7 +14,7 @@ COPY certificates/public.p12 /servers/esdl-drive-server/resources/security/
 # delete dev or prod files
 ARG mode
 ENV mode=${mode:-prod}
-RUN if [ "x$mode" = "xprod" ] ; then rm /servers/esdl-drive-server/dev.xml; else echo "Building development image"; fi
+RUN if [ "x$mode" = "xprod" ] ; then rm /servers/esdl-drive-server/dev*.xml; else echo "Building development image"; fi
 # Run the server script and start the defaultServer by default.
 ENTRYPOINT ["/opt/ol/wlp/bin/server", "run"]
 CMD ["esdl-drive-server"]

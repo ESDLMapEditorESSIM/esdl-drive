@@ -45,7 +45,6 @@
 		<feature>mpMetrics-5.1</feature>
 		<feature>mpOpenAPI-3.1</feature>
 		<feature>openIDConnectClient-1.0</feature>
-
 		<!-- next few are for geographical persistance -->
 		<feature>jdbc-4.3</feature>
 		<!-- only use the JPA container code, not the default ORM provider (EclipseLink) as it does not support spatial queries -->

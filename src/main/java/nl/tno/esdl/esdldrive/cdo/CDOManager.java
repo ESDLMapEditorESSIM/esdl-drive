@@ -41,11 +41,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.CDOObjectHistory;
 import org.eclipse.emf.cdo.CDOState;
@@ -124,6 +119,10 @@ import esdl.EnergySystem;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
 import esdl.util.EsdlResourceFactoryImpl;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import nl.tno.esdl.esdldrive.browser.BrowserNode;
 import nl.tno.esdl.esdldrive.browser.BrowserNode.BrowserNodeType;
 import nl.tno.esdl.esdldrive.cdo.cache.CachedModel;
@@ -134,7 +133,6 @@ import nl.tno.esdl.esdldrive.edr.SearchESDLType;
 import nl.tno.esdl.esdldrive.edr.SortOrder;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
-import nl.tno.esdl.esdldrive.util.FileUtil;
 
 /**
  * @author werkmane

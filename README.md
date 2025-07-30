@@ -74,6 +74,9 @@ The ESDL Drive uses `cdo-mondaine` as client name in keycloak. Its associated se
 `keycloak_client_secret`. It defaults to the one used for the localhost deployment in docker.
 Users need the group of `cdo_read` to read and write to the ESDLDrive. Normally everybody in the default keycloak setup for localhost has this role.
 
+#### OLD KEYCLOAK versions ####
+Old versions of keycloak (< 17.0) use different logout urls. Set OLD_KEYCLOAK to 1 to use these old urls.
+
 #### Keytool password
 All keys and certificates (see certificates/certificate.md) are stored in a java keystore. You need the keytool password to access this keystore.
 `keytool_password` has a default value (see also server.xml)

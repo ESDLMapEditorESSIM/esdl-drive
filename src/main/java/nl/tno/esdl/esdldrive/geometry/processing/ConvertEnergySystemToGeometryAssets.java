@@ -290,20 +290,27 @@ public class ConvertEnergySystemToGeometryAssets {
 	
 	@SuppressWarnings("unchecked")
 	private static org.geolatte.geom.Polygon<G2D> createGeoLattePolygon(esdl.Polygon polygon) throws IllegalArgumentException {
-		SubPolygon exterior = polygon.getExterior();		
-		esdl.Point first =  exterior.getPoint().getFirst();
-		esdl.Point last = exterior.getPoint().getLast();
+		List<esdl.Point> points = new ArrayList<esdl.Point>(polygon.getExterior().getPoint());		
+		esdl.Point first =  points.get(0);
+		esdl.Point last = points.get(points.size() - 1);
 		if (!first.equals(last)) {
 			// Sequence is not closed, add first point after last point
-			exterior.getPoint().add(EcoreUtil.copy(first));
+			points.add(EcoreUtil.copy(first));
 		}
 		ArrayList<LinearRingToken<G2D>> tokens = new ArrayList<>();
-		G2D[] ext_points = exterior.getPoint().stream().map(p -> g(p.getLon(), p.getLat())).toArray(G2D[]::new);
+		G2D[] ext_points = points.stream().map(p -> g(p.getLon(), p.getLat())).toArray(G2D[]::new);
 		LinearRingToken<G2D> shell = ring(ext_points);
 		tokens.add(shell);
 		for (int i = 0; i< polygon.getInterior().size(); i++) {
 			SubPolygon interior = polygon.getInterior().get(i);
-			G2D[] int_coords = interior.getPoint().stream().map( p -> g(p.getLon(), p.getLat()) ).toArray(G2D[]::new);
+			points = new ArrayList<esdl.Point>(interior.getPoint());
+			first =  points.get(0);
+			last = points.get(points.size() - 1);
+			if (!first.equals(last)) {
+				// Sequence is not closed, add first point after last point
+				points.add(EcoreUtil.copy(first));
+			}
+			G2D[] int_coords = points.stream().map( p -> g(p.getLon(), p.getLat()) ).toArray(G2D[]::new);
 			tokens.add(ring(int_coords));
 		}
 		return polygon(WGS84, tokens.stream().toArray(size -> (LinearRingToken<G2D>[]) Array.newInstance(tokens.get(0).getClass(), size)));

@@ -48,7 +48,7 @@ public class GeometryResource {
     @ConfigProperty(name = "boundary_service_base_uri", defaultValue = "http://geis-01.hesi.energy:4003")
     private String boundary_service_base_uri;
 
-	private Logger log = Logger.getLogger(GeometryResource.class.getClass().getName());
+	private Logger log = Logger.getLogger(GeometryResource.class.getName());
 
 	@Inject
     private ESDLGeoObjectsDao assetDao;
@@ -72,6 +72,7 @@ public class GeometryResource {
 		} 
 		
 		CDOResource resource = cdoManager.getResource(userInfo, request.getPath());
+		// check if this is not a folder...
 		EObject contents = resource.getContents().get(0);
 		
 		if (contents != null && contents instanceof esdl.EnergySystem) {

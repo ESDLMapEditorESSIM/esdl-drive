@@ -26,28 +26,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.logging.Logger;
 
-import jakarta.annotation.security.RolesAllowed;
-import jakarta.enterprise.context.RequestScoped;
-import jakarta.inject.Inject;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DefaultValue;
-import jakarta.ws.rs.Encoded;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.HEAD;
-import jakarta.ws.rs.PUT;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.Response.Status;
-import jakarta.ws.rs.core.SecurityContext;
-
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
@@ -71,8 +49,29 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
+import com.ibm.websphere.security.openidconnect.token.IdToken;
 
 import esdl.EsdlPackage;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.enterprise.context.RequestScoped;
+import jakarta.inject.Inject;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HEAD;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.Response.Status;
+import jakarta.ws.rs.core.SecurityContext;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.DrivePermission;
@@ -394,8 +393,9 @@ public class CDOServerResource {
 	@Tag(ref = "ESDL Drive")
 	public Response logout(@Context SecurityContext securityContext) {
 		UserInfo userInfo;
+		IdToken idToken = PropagationHelper.getIdToken();
 		try {
-			userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+			userInfo = AccessController.userInfoFromToken(idToken);
 		} catch (InvalidLoginInformationException e) {
 			return Response.serverError().status(Status.FORBIDDEN).entity(e.getMessage()).build();
 		}
@@ -410,11 +410,24 @@ public class CDOServerResource {
 				}
 			}
 			log.info("Logout request, principal=" + securityContext.getUserPrincipal() + " [username=" + userInfo.getUserName() + ", ip=" + request.getRemoteAddr() + "]");
-			String keycloak_base_url = ConfigProvider.getConfig().getValue("keycloak_realm", String.class);
+			String keycloak_base_url = ConfigProvider.getConfig().getValue("keycloak_realm_external", String.class);
+			String old_keycloak = ConfigProvider.getConfig().getOptionalValue("OLD_KEYCLOAK", String.class).orElse("");
 			//return redirect(oidc.client_secrets.get('issuer') + '/protocol/openid-connect/logout?redirect_uri=' + request.host_url)
 			String serverURL = request.getScheme() + "://" + request.getServerName()+":"+request.getServerPort() + "/";
-			String redirect_url = keycloak_base_url + "/protocol/openid-connect/logout?redirect_uri=" + serverURL;
+			//post_logout_redirect_uri=http://localhost&client_id=cdo
+			String redirect_url = keycloak_base_url + "/protocol/openid-connect/logout";
 			
+			// TODO: backchannel logout works since 24.0.0.2: use  /oidcclient/backchannel_logout/{oidcClientId} where 
+			// oidcClientId = cdoMondaine (as defined in server.xml)
+			
+			// get ID token here!
+			// String idTokenString = request.getParameter(OIDCConstants.OIDC_LOGOUT_ID_TOKEN_HINT);
+			//redirect_url = redirect_url + "?post_logout_redirect_uri=" + serverURL + "&id_token_hint=" + idToken.getAccessToken();
+			// TODO: WARNING: hard-coded client id!
+			redirect_url = redirect_url + "?post_logout_redirect_uri=" + serverURL + "&client_id=" + "cdo-mondaine";
+			if (old_keycloak != null && !old_keycloak.isBlank()) {
+				redirect_url = redirect_url + "?redirect_uri=" + serverURL;
+			}
 			log.info("redirect uri: " + redirect_url);
 			return Response.seeOther(URI.create(redirect_url)).build();
 			//return Response.ok("Logout complete").build();
@@ -424,6 +437,22 @@ public class CDOServerResource {
 			return Response.serverError().status(Status.FORBIDDEN).build();
 		}
 	}
+	
+	
+	// TODO: make this work: file issue at OpenLibery why getRunAsSubject() returns null
+//	public String getRawIdToken() throws WSSecurityException {
+//	    Subject subj = WSSubject.getRunAsSubject();
+//	    Set<Object> privCredentials = subj.getPrivateCredentials();
+//	    for (Object credentialObj : privCredentials) {
+//	        if (credentialObj instanceof Map) {
+//	            Object value = ((Map<?, ?>) credentialObj).get("id_token");
+//	            if (value != null)
+//	                return (String) value;
+//	        }
+//	    }
+//	    
+//	    return null;
+//	}
 
 	@GET
 	@Path("/list")
