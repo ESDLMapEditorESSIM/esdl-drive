@@ -6,7 +6,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nl.tno.esdl</groupId>
 	<artifactId>esdl-drive</artifactId>
-	<version>25.07</version>
+	<version>25.08</version>
 	<packaging>war</packaging>
 	<properties>
 		<openliberty.maven.version>3.11.1</openliberty.maven.version>
@@ -17,10 +17,10 @@
 		<server.name>esdl-drive-server</server.name>
 		<failOnMissingWebXml>false</failOnMissingWebXml>
 		<esdldrive.version>${project.version}</esdldrive.version>
-		<esdl.version>2.25.5.cdo</esdl.version>
+		<esdl.version>2.25.7.cdo</esdl.version>
 		<edd.version>1.3.0</edd.version>
-		<maven.compiler.source>11</maven.compiler.source>
-		<maven.compiler.target>11</maven.compiler.target>
+		<maven.compiler.source>17</maven.compiler.source>
+		<maven.compiler.target>17</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<downloadSources>true</downloadSources>
 		<downloadJavadocs>true</downloadJavadocs>
@@ -112,7 +112,7 @@
 
 
 		<!-- ESDL and EDD models -->
-		<dependency>
+		<dependency> 
 			<groupId>nl.tno.esdl</groupId>
 			<artifactId>esdl</artifactId>
 			<!-- <version>2.0.0-SNAPSHOT</version> -->
@@ -123,7 +123,7 @@
 			<groupId>nl.tno.edr</groupId>
 			<artifactId>eddmodel</artifactId>
 			<version>${edd.version}</version>
-		</dependency>
+		</dependency> 
 		<dependency>
 			<groupId>org.emfjson</groupId>
 			<artifactId>emfjson-jackson</artifactId>

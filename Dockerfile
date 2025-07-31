@@ -1,5 +1,9 @@
+# Note: this also copies a server configuration (including postgres libraries etc)
+# So after a mvn package you need to do a mvn liberty:create
+#
 # Start with OL runtime.
-FROM open-liberty:full-java11-openj9
+FROM open-liberty:full-java17-openj9
+#FROM icr.io/appcafe/open-liberty:full-java21-openj9-ubi-minimal
 
 USER root
 # Symlink servers directory for easier mounts.
