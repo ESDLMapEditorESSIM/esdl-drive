@@ -3,14 +3,12 @@
 
 	<!--  config for idm.hesi.energy -->
 	
-	<variable name="keycloak_realm"
-		defaultValue="http://localhost:8080/auth/realms/esdl-mapeditor"  />
-<!--	<variable name="keycloak_realm_external" defaultValue="http://localhost:8080/auth/realms/esdl-mapeditor" /> -->
-<!--	<variable name="keycloak_client_secret" value="972d10db-26d4-492b-83ce-c29f05689019" />-->
-<!--	<variable name="keytool_password" value="password" />-->
-
+	<variable name="keycloak_realm" value="https://idm.hesi.energy/auth/realms/esdl-mapeditor" />
+	<variable name="keycloak_realm_external" defaultValue="${keycloak_realm}" />
+	<variable name="keycloak_client_secret" value="972d10db-26d4-492b-83ce-c29f05689019" />
+	<variable name="keytool_password" value="password" />
+	
 	<openidConnectClient id="cdoMondaine" 
-    	
     	audiences="cdo-mondaine,esdl-mapeditor,account"
     	tokenReuse="true" 
 	    clientId="cdo-mondaine"
@@ -21,34 +19,9 @@
     	groupIdentifier="groups"
 
     	inboundPropagation="supported"
-    	trustAliasName="esdl-mapeditor"
     	trustStoreRef="defaultKeyStore"
     	
-	    issuerIdentifier="${keycloak_realm},${keycloak_realm_external}"
-		tokenEndpointUrl="${keycloak_realm}/protocol/openid-connect/token"		
-		userInfoEndpointEnabled="true" 
-		userInfoEndpointUrl="${keycloak_realm}/protocol/openid-connect/userinfo"
-		httpsRequired="false"
-    	
-    	authorizationEndpointUrl="http://localhost:8080/auth/realms/esdl-mapeditor/protocol/openid-connect/auth"
-    	jwkEndpointUrl="http://localhost:8080/auth/realms/esdl-mapeditor/protocol/openid-connect/certs"
-	/>
-
-	
-<!--	<openidConnectClient id="cdoMondaine" -->
-<!--    	audiences="cdo-mondaine,esdl-mapeditor,account"-->
-<!--    	tokenReuse="true" -->
-<!--	    clientId="cdo-mondaine"-->
-<!--	    clientSecret="${keycloak_client_secret}"-->
-<!--	    signatureAlgorithm="RS256"-->
-<!--	    scope="openid profile email user_group user_group_path microprofile-jwt"-->
-<!--	    userIdentifier="email"-->
-<!--    	groupIdentifier="groups"-->
-
-<!--    	inboundPropagation="supported"-->
-<!--    	trustStoreRef="defaultKeyStore"-->
-    	
-<!--    	discoveryEndpointUrl="${keycloak_realm}/.well-known/openid-configuration"-->
+    	discoveryEndpointUrl="${keycloak_realm}/.well-known/openid-configuration"
 	/>
 
 <!--     	trustAliasName="esdl-mapeditor" -->
