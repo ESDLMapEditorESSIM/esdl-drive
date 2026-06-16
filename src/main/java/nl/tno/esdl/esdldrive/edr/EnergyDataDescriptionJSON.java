@@ -10,9 +10,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.TreeSet;
 
-import jakarta.json.bind.annotation.JsonbPropertyOrder;
-import jakarta.validation.constraints.NotNull;
-
 import org.eclipse.emf.cdo.CDOObject;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.revision.CDORevision;
@@ -29,6 +26,10 @@ import edd.EddFactory;
 import edd.EnergyDataDescription;
 import edd.Image;
 import edd.ObjectAnnotation;
+import edd.ResourceMetaData;
+import jakarta.json.bind.annotation.JsonbPropertyOrder;
+import jakarta.validation.constraints.NotNull;
+import nl.tno.esdl.esdldrive.util.CustomXMLResourceImpl;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
 
 
@@ -80,7 +81,7 @@ public class EnergyDataDescriptionJSON {
 				+ tags + ", version=" + version + ", graphURL=" + graphURL + ", esdl=" + esdl + ", image=" + image + "]";
 	}
 	
-	public EnergyDataDescription toEDD() throws IOException {
+	public EnergyDataDescription toEDD(ResourceMetaData metadata) throws IOException {
 		EnergyDataDescription edd = EddFactory.eINSTANCE.createEnergyDataDescription();
 		edd.setTitle(title);
 		edd.setId(id); // need to set ID, as ID is used in EMF compare.
@@ -101,11 +102,14 @@ public class EnergyDataDescriptionJSON {
 			byte[] decoded = Base64.getDecoder().decode(esdlBytes);
 			ByteArrayInputStream stream = new ByteArrayInputStream(decoded);
 			HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
-			XMLResourceImpl resource = new XMLResourceImpl();
+			CustomXMLResourceImpl resource = new CustomXMLResourceImpl();
 			resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
 			//resource.getDefaultLoadOptions().put(XMLResource.OPTION_RECORD_UNKNOWN_FEATURE, Boolean.TRUE);
 			resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
 			resource.load(stream, null);
+			// set metadata information
+			metadata.setObjectCount(resource.getElementCount());
+			metadata.setByteSize(esdl.length());
 			EObject esdlObject = resource.getContents().get(0);
 			edd.setEsdl(esdlObject);
 			edd.setEsdlType(esdlObject.eClass().getName());

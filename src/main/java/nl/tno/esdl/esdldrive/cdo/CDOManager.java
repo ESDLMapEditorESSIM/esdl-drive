@@ -115,6 +115,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import edd.EddFactory;
 import edd.EddPackage;
 import edd.EnergyDataDescription;
+import edd.ResourceMetaData;
 import esdl.EnergySystem;
 import esdl.EsdlFactory;
 import esdl.EsdlPackage;
@@ -165,6 +166,7 @@ public class CDOManager {
 	private final static CDORevisionPrefetchingPolicy BIG_PREFETCHER = CDOUtil.createRevisionPrefetchingPolicy(1000);
 	private static final Logger log = Logger.getLogger(CDOManager.class.getName());
 	private static final ObjectMapper jsonMapper = EMFModule.setupDefaultMapper();
+	private EObjectMetaData eObjectMetaData;
 	
 	/**
 	 * TODO: have a look at https://github.com/epsilonlabs/emc-cdo/blob/master/org.eclipse.epsilon.emc.cdo/src/org/eclipse/epsilon/emc/cdo/CDOModel.java
@@ -179,7 +181,7 @@ public class CDOManager {
 		cdoRepositoryName = ConfigProvider.getConfig().getValue("CDO_REPOSITORY_NAME", String.class);
 		log.info("Config from ConfigProvider: CDO@:" + cdoServerHostName + "/" + cdoRepositoryName);
 		log.info("From environment: " + System.getenv("CDO_SERVER_HOST"));
-		//setUpCDO();
+		eObjectMetaData = new EObjectMetaData();
 		
 		
 		emfCompare = EMFCompare.builder().build();
@@ -246,7 +248,7 @@ public class CDOManager {
 	}
 
 
-	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, Resource uploadedResource, String commitMessage, boolean overwrite)
+	public synchronized CDOCommitInfo storeResource(UserInfo userInfo, String resourceName, Resource uploadedResource, String commitMessage, boolean overwrite, ResourceMetaData resourceMetaData)
 			throws ConcurrentAccessException, CommitException, PermissionDeniedException, IllegalStateException, TimeoutException, InterruptedException {
 		log.info("Starting storeResource transaction " + resourceName);
 		DrivePermission permission = AccessController.getPermission(resourceName, userInfo);
@@ -261,6 +263,7 @@ public class CDOManager {
 		//transaction.options().addChangeSubscriptionPolicy(CDOAdapterPolicy.CDO);
 		CDOCommitInfo commitInfo = null;
 		CDOResource fromDatabase = null;
+		saveMetaData(transaction, resourceMetaData);
 		try {
 			if (overwrite) {
 				// overwrite the file, not merge the differences
@@ -577,7 +580,7 @@ public class CDOManager {
 		}
 	}
 
-	public ResourceMetadata getResourceMetaData(UserInfo userInfo, String resourceURL) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
+	public long getLastTimestamp(UserInfo userInfo, String resourceURL) throws CDOResourceNodeNotFoundException, PermissionDeniedException {
 		log.info("Get metadata for " + resourceURL);
 		// Open session 
 		// PRE: access is allowed
@@ -586,8 +589,7 @@ public class CDOManager {
 		CDOResource resource2 = transaction.getResource(resourceURL);
 		long timeStamp = resource2.cdoRevision(true).getTimeStamp();
 		log.info("HEAD getLastUpdateTime() = " + timeStamp);
-		ResourceMetadata resourceMetadata = new ResourceMetadata(timeStamp);
-		return resourceMetadata;
+		return timeStamp;
 
 	}
 
@@ -756,6 +758,8 @@ public class CDOManager {
 
 
 
+
+
 	@PreDestroy
 	private void shutdownCDO() {
 		if (connector.isConnected()) {
@@ -789,6 +793,7 @@ public class CDOManager {
 					.stream().filter(CDOResourceNode.class::isInstance)
 					.map(CDOResourceNode.class::cast)
 					.filter(rn -> !rn.getName().equals(AccessController.EDR_FOLDER_NAME))
+					.filter(rn -> !rn.getName().equals(EObjectMetaData.METADATA_PREFIX))
 					.collect(Collectors.toCollection(BasicEList::new));
 		} else {		
 			CDOResourceNode resourceNode = view.getResourceNode(path);
@@ -931,7 +936,11 @@ public class CDOManager {
 		map.put("writable", permission.isWritable());
 		boolean cached = getCache().containsKey(fileName);
 		map.put("cached", cached);
-		if (cached) {
+		ResourceMetaData metaData = this.getMetaData(view, fileName);
+		if (metaData != null) {
+			map.put("size", ESDLUtil.bytesSizeToString(metaData.getByteSize()));
+			map.put("# objects", metaData.getObjectCount());
+		} else if (cached) {
 			map.put("size", ESDLUtil.bytesSizeToString(getCache().get(fileName).getXmlContent().length()));
 		}
 		view.close();
@@ -1557,5 +1566,33 @@ public class CDOManager {
 				", size = " + result.size() + 
 				", time=" + Duration.between(start, LocalDateTime.now()));
 		return result;
+	}
+	
+	
+	/**
+	 * Get some extra meta data of a Resource identified by 'path', such as size (in XML bytes) and nr of objects
+	 * @param view
+	 * @param path
+	 * @return ResourceMetaData
+	 */
+	public ResourceMetaData getMetaData(CDOView view, String path) {
+		return eObjectMetaData.getMetaData(view, path);
+	}
+	
+	/**
+	 * Save some extra metadata for a resource identified by 'path'
+	 * @param transaction
+	 * @param path
+	 * @param size
+	 * @param objectCount
+	 * @throws ConcurrentAccessException
+	 * @throws CommitException
+	 */
+	public void saveMetaData(CDOTransaction transaction, String path, int size, int objectCount) throws ConcurrentAccessException, CommitException {
+		eObjectMetaData.saveMetaData(transaction, path, size, objectCount);
+	}
+	
+	public void saveMetaData(CDOTransaction transaction, ResourceMetaData metadata) throws ConcurrentAccessException, CommitException {
+		eObjectMetaData.saveResourceMetaData(transaction, metadata);
 	}
 }

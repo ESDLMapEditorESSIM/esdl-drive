@@ -34,7 +34,6 @@ import org.eclipse.emf.cdo.util.InvalidURIException;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
 import org.eclipse.emf.ecore.xmi.XMLResource;
-import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
@@ -51,6 +50,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 import com.ibm.websphere.security.openidconnect.token.IdToken;
 
+import edd.EddFactory;
+import edd.ResourceMetaData;
 import esdl.EsdlPackage;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
@@ -75,11 +76,11 @@ import jakarta.ws.rs.core.SecurityContext;
 import nl.tno.esdl.esdldrive.cdo.AccessController;
 import nl.tno.esdl.esdldrive.cdo.CDOManager;
 import nl.tno.esdl.esdldrive.cdo.DrivePermission;
-import nl.tno.esdl.esdldrive.cdo.ResourceMetadata;
 import nl.tno.esdl.esdldrive.cdo.UserInfo;
 import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 import nl.tno.esdl.esdldrive.edr.PublicUserInfo;
+import nl.tno.esdl.esdldrive.util.CustomXMLResourceImpl;
 
 /**
  * @author werkmane
@@ -272,7 +273,7 @@ public class CDOServerResource {
 				String xmlString = result.toString(StandardCharsets.UTF_8.name());
 				System.out.println("Storing in cache");
 				
-				cdoManager.setCache(resourceURL, xmlString, null);
+				cdoManager.setCache(resourceURL, xmlString, null);				
 				ByteArrayInputStream resourceInputStream = new ByteArrayInputStream(result.toByteArray()); 
 				
 				
@@ -285,13 +286,18 @@ public class CDOServerResource {
 				
 				// create hashmap to speed up reading
 				HashMap<String, EObject> INTRINSIC_ID_TO_E_OBJECT_MAP = new HashMap<String, EObject>();
-				XMLResourceImpl resource = new XMLResourceImpl();
+				CustomXMLResourceImpl resource = new CustomXMLResourceImpl();
 				resource.getDefaultLoadOptions().put(XMLResource.OPTION_DEFER_IDREF_RESOLUTION, Boolean.TRUE);
 				resource.getDefaultLoadOptions().put(XMLResource.OPTION_RECORD_UNKNOWN_FEATURE, Boolean.TRUE);
 				resource.setIntrinsicIDToEObjectMap(INTRINSIC_ID_TO_E_OBJECT_MAP);
-				resource.load(resourceInputStream, null);
+				resource.load(resourceInputStream, null);				
 				System.out.println("Done reading contents of " + resourceURL);
-				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, resource, commitMessage, overwrite);
+				// store some meta data about the resource we're saving
+				ResourceMetaData resourceMetaData = EddFactory.eINSTANCE.createResourceMetaData();
+				resourceMetaData.setByteSize(xmlString.length());
+				resourceMetaData.setObjectCount(resource.getElementCount());
+				resourceMetaData.setResourcePath(resourceURL);
+				CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, resourceURL, resource, commitMessage, overwrite, resourceMetaData);
 				System.out.println("Saved " + resourceURL + ", commitInfo: " + commitInfo);
 				long timeStamp = commitInfo.getTimeStamp();
 
@@ -352,8 +358,8 @@ public class CDOServerResource {
 			}
 			resourceExists = cdoManager.existResource(userInfo, resourceURL);
 			if (resourceExists) {
-				ResourceMetadata resourceMetaData = cdoManager.getResourceMetaData(userInfo, resourceURL);
-				return Response.ok().lastModified(new Date(resourceMetaData.getTimeStamp())).build();
+				long timeStamp = cdoManager.getLastTimestamp(userInfo, resourceURL);
+				return Response.ok().lastModified(new Date(timeStamp)).build();
 			} else {
 				return Response.status(Status.NOT_FOUND).build();
 			}

@@ -38,8 +38,10 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ibm.websphere.security.openidconnect.PropagationHelper;
 
+import edd.EddFactory;
 import edd.EddPackage;
 import edd.EnergyDataDescription;
+import edd.ResourceMetaData;
 import esdl.EsdlPackage;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
@@ -48,6 +50,7 @@ import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
@@ -82,6 +85,10 @@ public class EDRResource {
 	
 	@Inject
 	CDOManager cdoManager;
+	
+	@Context 
+	private HttpServletRequest request;
+	
 		
 	@GET
 	@Path("/browse")
@@ -437,14 +444,17 @@ public class EDRResource {
 		log.info("EDR upload: " + resourceURL + " by " + userInfo.getUserName());
 		
 		try {
-			EnergyDataDescription edd = eddJson.toEDD();
+			ResourceMetaData resourceMetaData = EddFactory.eINSTANCE.createResourceMetaData();
+			resourceMetaData.setResourcePath(path);
+			resourceMetaData.setByteSize(request.getContentLengthLong());
+			EnergyDataDescription edd = eddJson.toEDD(resourceMetaData);
 //			if (edd.getId() == null || edd.getId().isBlank()) {
 //				edd.setId(path); // needed for EMF Compare
 //			}
 			Resource resource;
 			resource = new XMLResourceImpl();
 			resource.getContents().add(edd);
-			CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, path, resource, commitMessage, false);
+			CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, path, resource, commitMessage, false, resourceMetaData);
 			System.out.println(commitInfo);
 		} catch (IOException e) {
 			log.severe(e.getMessage());
