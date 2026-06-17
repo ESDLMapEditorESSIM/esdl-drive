@@ -29,6 +29,7 @@ import java.util.logging.Logger;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
+import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
 import org.eclipse.emf.cdo.util.CDOUtil;
 import org.eclipse.emf.cdo.util.InvalidURIException;
 import org.eclipse.emf.ecore.EObject;
@@ -145,6 +146,9 @@ public class CDOServerResource {
 		}
 		try {
 			CDOResource cdoResource = cdoManager.getResource(userInfo, resourceURL, revision);
+			if (cdoResource.eClass().getName().equals("CDOResourceFolder")) {
+				return Response.status(Status.BAD_REQUEST).entity("Found, but not a file that can be returned").type(MediaType.TEXT_PLAIN).build();
+			}
 			CDOUtil.setIntrinsicIDToEObjectMap(cdoResource, new HashMap<String, EObject>());
 			String xmlString = cdoManager.convertToXMLString(cdoResource);
 			//log.info("Retrieved: " + xmlString);

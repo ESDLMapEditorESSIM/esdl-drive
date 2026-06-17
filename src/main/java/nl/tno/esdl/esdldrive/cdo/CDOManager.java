@@ -461,7 +461,7 @@ public class CDOManager {
 			//CDOResourceNode resourceNode = view.getResourceNode(resourceName);
 			//log.info("ResourceNode: " + resourceNode);
 			Integer version = resource.cdoRevision(true) != null ? resource.cdoRevision(true).getVersion() : null;
-			log.info("getResource found: " + resource.getName() + ", version:" + version);
+			log.info("getResource found: " + resource.getName() + ", version:" + version + ", type="+resource.eClass().getName());
 
 			return resource;
 		} catch (Exception e) {

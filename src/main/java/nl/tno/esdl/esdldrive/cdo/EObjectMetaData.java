@@ -107,7 +107,7 @@ public class EObjectMetaData {
 
 	public void deleteMetaDataPath(CDOTransaction transaction, String path) throws ConcurrentAccessException, CommitException {
 		EddPackage.eINSTANCE.eClass(); // load ED metadata model
-		CDOQuery query = transaction.createQuery("ocl", "ResourceMetaData.allInstances()->select(rmd:ResourceMetaData | rmd.resourcePath.startsWith='" + OCLUtil.escapeOCLPath(path) + "')", EddPackage.Literals.RESOURCE_META_DATA);
+		CDOQuery query = transaction.createQuery("ocl", "ResourceMetaData.allInstances()->select(rmd:ResourceMetaData | rmd.resourcePath.startsWith('" + OCLUtil.escapeOCLPath(path) + "'))", EddPackage.Literals.RESOURCE_META_DATA);
 		//query.setParameter("path", path);
 		List<ResourceMetaData> result = query.getResult(ResourceMetaData.class);
 		log.info("Updating metadata: removing " + result.size() + " elements");
