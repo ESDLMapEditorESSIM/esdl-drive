@@ -1434,13 +1434,15 @@ public class CDOManager {
 				Collections.reverse(oclQueryResult);
 			}
 			
+			log.info("Full OCL query returned objects: " + oclQueryResult.size());
 			// filter results based on path
 			if (filter.get("path") != null) {
 				oclQueryResult = oclQueryResult.stream().filter(edd -> edd.cdoDirectResource().getPath().startsWith(filter.get("path"))).collect(Collectors.toList());
 			}
+			log.info("OCL query filtered by path returned objects: " + oclQueryResult.size());
 			// filter results based on accessibility
 			List<EnergyDataDescription> accessibleEDD = oclQueryResult.stream().filter(edd -> AccessController.canAccess(edd.cdoDirectResource().getPath(), userInfo)).collect(Collectors.toList());
-			
+			log.info("OCL query filtered by access returned objects: " + oclQueryResult.size());
 			limit = offset + limit;
 			if (limit <= 0) limit = accessibleEDD.size(); // no limit
 			limit = Math.min(accessibleEDD.size(), limit); // limit > result size
