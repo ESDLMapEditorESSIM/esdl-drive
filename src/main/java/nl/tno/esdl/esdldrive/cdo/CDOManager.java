@@ -134,6 +134,7 @@ import nl.tno.esdl.esdldrive.edr.SearchESDLType;
 import nl.tno.esdl.esdldrive.edr.SortOrder;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 import nl.tno.esdl.esdldrive.util.ESDLUtil;
+import nl.tno.esdl.esdldrive.util.OCLUtil;
 
 /**
  * @author werkmane
@@ -1049,6 +1050,7 @@ public class CDOManager {
 			resourceNode.delete(null);
 			if (resourceNode instanceof CDOResourceLeaf) {
 				getCache().remove(path);
+				eObjectMetaData.deleteMetaData(transaction, eObjectMetaData.getMetaData(transaction, path));
 			} else {
 				Iterator<Entry<String, CachedModel>> iterator = getCache().entrySet().iterator();
 				while (iterator.hasNext()) {
@@ -1058,6 +1060,7 @@ public class CDOManager {
 						log.info("Delete: Invalidating cache for " + entry.getKey());
 					}
 				}
+				eObjectMetaData.deleteMetaDataPath(transaction, path);
 			}
 			transaction.commit();
 		} catch (CDOResourceNodeNotFoundException e) {
@@ -1338,7 +1341,7 @@ public class CDOManager {
 				// For checking for only one tag:
 				//oclFilter.add("e.tags.toLowerCase()->includes('" + entry.getValue().toLowerCase() + "')");
 				// toLowerCase -> makes search case insensitive
-				String oclTagList = tags.stream().map(t -> "'" + t.toLowerCase() + "'").collect(Collectors.joining("," ));
+				String oclTagList = tags.stream().map(t -> "'" + OCLUtil.escapeOCLPath(t.toLowerCase()) + "'").collect(Collectors.joining("," ));
 				// AND operation:
 				//oclFilter.add("e.tags.toLowerCase()->includesAll(Set{"+tagQuery+"})");
 				// OR operation:
@@ -1386,7 +1389,7 @@ public class CDOManager {
 				//edd.title.matches('.*Ewoud.*')
 				//eddFilter.add(entry.getKey() + " LIKE '%" + entry.getValue() + "%'");
 				// (?i) means case insensitive
-				oclFilter.add("e." + entry.getKey() + ".matches('(?i).*" + entry.getValue() + ".*')");
+				oclFilter.add("e." + entry.getKey() + ".matches('(?i).*" + OCLUtil.escapeOCLPath(entry.getValue()) + ".*')");
 				break;
 			}
 		}
@@ -1404,12 +1407,14 @@ public class CDOManager {
 					EStructuralFeature feature = eClass.getEStructuralFeature(attributeName);
 					if (feature != null) {
 						if ("EString".equals(feature.getEType().getName())) { // EStrings need to be quoted and matched
-							System.out.println("type=" + feature.getEType());
-							oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ ".matches('(?i).*" + attributeValue + ".*')");
+							System.out.println("EDR query attributeName type=" + feature.getEType());
+							oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ ".matches('(?i).*" + OCLUtil.escapeOCLPath(attributeValue) + ".*')");
 						} else {
 							// TODO: add case for multi valued attributes
 							oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ "=" + attributeValue);
 						}
+					} else {
+						throw new IllegalArgumentException("Cannot find attributeName " + attributeName + " in class " + eClassifier.getName() );
 					}
 				}
 			} 

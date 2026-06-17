@@ -75,6 +75,7 @@ import nl.tno.esdl.esdldrive.cdo.UserInfo.InvalidLoginInformationException;
 import nl.tno.esdl.esdldrive.cdo.exceptions.PermissionDeniedException;
 import nl.tno.esdl.esdldrive.edr.query.EDRQueryResult;
 import nl.tno.esdl.esdldrive.util.JSONUtil;
+import nl.tno.esdl.esdldrive.util.OCLUtil;
 
 @RequestScoped
 @Path("/edr")
@@ -338,7 +339,7 @@ public class EDRResource {
 			if (!path.startsWith("/")) path = "/" + path;
 			// This OCL query filters first based on folder path and then casts the contents of the resource to EDDs, and then collect the tags of those EDDs
 			String oclQuery = "eresource::CDOResource.allInstances()"
-					+ "->select(r | r.path.startsWith('" + path + "'))"
+					+ "->select(r | r.path.startsWith('" + OCLUtil.escapeOCLPath(path) + "'))"
 					+ "->collect(r | r.contents)"
 					+ "->select(e | e.oclIsTypeOf(edd::EnergyDataDescription))->collect(e| e.oclAsType(edd::EnergyDataDescription))" 
 					+ "->collect(e | e.tags)->asSet()->sortedBy(t|t)";

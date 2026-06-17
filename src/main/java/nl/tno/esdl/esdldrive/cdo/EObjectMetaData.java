@@ -1,6 +1,7 @@
 package nl.tno.esdl.esdldrive.cdo;
 
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.transaction.CDOTransaction;
@@ -13,6 +14,7 @@ import edd.ESDLDriveMetaData;
 import edd.EddFactory;
 import edd.EddPackage;
 import edd.ResourceMetaData;
+import nl.tno.esdl.esdldrive.util.OCLUtil;
 
 
 
@@ -21,6 +23,8 @@ public class EObjectMetaData {
 	public final static String METADATA_PREFIX = "_metadata";
 	private final static String METADATA_RESOURCE = METADATA_PREFIX + "/metadata.edd";
 	private boolean init = false;
+	
+	private static final Logger log = Logger.getLogger(EObjectMetaData.class.getName());
 	
 	public EObjectMetaData() {
 		
@@ -37,17 +41,27 @@ public class EObjectMetaData {
 		}
 	}
 	
+
 	public ResourceMetaData getMetaData(CDOView view, String path) {
 		//CDOQueryUtil
 		EddPackage.eINSTANCE.eClass(); // load ED metadata model
-		CDOQuery query = view.createQuery("ocl", "ResourceMetaData.allInstances()->select(rmd:ResourceMetaData | rmd.resourcePath='" + path + "')", EddPackage.Literals.RESOURCE_META_DATA);
+		CDOQuery query = view.createQuery("ocl", "ResourceMetaData.allInstances()->select(rmd:ResourceMetaData | rmd.resourcePath='" + OCLUtil.escapeOCLPath(path) + "')", EddPackage.Literals.RESOURCE_META_DATA);
 		//query.setParameter("path", path);
 		List<ResourceMetaData> result = query.getResult(ResourceMetaData.class);
+		log.info("Querying metadata: retrieved " + result.size() + " elements");
 		if (result.size() > 0) {
-			return result.getFirst();
+			return result.get(0);
 		} else {
 			return null;
 		}
+		
+	}
+	
+	public void deleteMetaData(CDOTransaction transaction, ResourceMetaData md) {
+		log.info("Updating metadata: removing 1 element: " + md.getResourcePath());
+		CDOResource resource = transaction.getOrCreateResource(METADATA_RESOURCE);
+		ESDLDriveMetaData edmd = (ESDLDriveMetaData) resource.getContents().get(0);
+		edmd.getMetadata().remove(md);
 		
 	}
 	
@@ -88,6 +102,18 @@ public class EObjectMetaData {
 			md.setByteSize(metadata.getByteSize());
 		}
 			
+		transaction.commit();
+	}
+
+	public void deleteMetaDataPath(CDOTransaction transaction, String path) throws ConcurrentAccessException, CommitException {
+		EddPackage.eINSTANCE.eClass(); // load ED metadata model
+		CDOQuery query = transaction.createQuery("ocl", "ResourceMetaData.allInstances()->select(rmd:ResourceMetaData | rmd.resourcePath.startsWith='" + OCLUtil.escapeOCLPath(path) + "')", EddPackage.Literals.RESOURCE_META_DATA);
+		//query.setParameter("path", path);
+		List<ResourceMetaData> result = query.getResult(ResourceMetaData.class);
+		log.info("Updating metadata: removing " + result.size() + " elements");
+		CDOResource resource = transaction.getOrCreateResource(METADATA_RESOURCE);
+		ESDLDriveMetaData edmd = (ESDLDriveMetaData) resource.getContents().get(0);
+		result.stream().forEach(edmd.getMetadata()::remove);	
 		transaction.commit();
 	}
 
