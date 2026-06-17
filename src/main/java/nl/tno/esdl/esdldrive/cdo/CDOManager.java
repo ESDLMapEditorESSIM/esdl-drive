@@ -1394,31 +1394,30 @@ public class CDOManager {
 			}
 		}
 
-		if (!esdlTypeWithPrefix.isEmpty()) {
-			if (attributeName == null ^ attributeValue == null) {
+		if (!esdlTypeWithPrefix.isEmpty() && (attributeName != null && attributeValue != null)) {
+			// query specific attribute of esdlType
+			//->select(edd|edd.esdl.oclAsType(esdl::Pipe).diameter=esdl::PipeDiameterEnum::VALUE_SPECIFIED)
+			if (attributeName == null || attributeValue == null) {
 				throw new IllegalArgumentException("Missing arguments when querying attributeName or attributeValue; esdlType, attributeName and attributeValue should be specified.");
-			} else {
-		
-				// query specific attribute of esdlType
-				//->select(edd|edd.esdl.oclAsType(esdl::Pipe).diameter=esdl::PipeDiameterEnum::VALUE_SPECIFIED)
-				EClassifier eClassifier = EsdlPackage.eINSTANCE.getEClassifier(rawType);
-				if (eClassifier != null && eClassifier instanceof EClass) {	
-					EClass eClass = (EClass)eClassifier;
-					EStructuralFeature feature = eClass.getEStructuralFeature(attributeName);
-					if (feature != null) {
-						if ("EString".equals(feature.getEType().getName())) { // EStrings need to be quoted and matched
-							System.out.println("EDR query attributeName type=" + feature.getEType());
-							oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ ".matches('(?i).*" + OCLUtil.escapeOCLPath(attributeValue) + ".*')");
-						} else {
-							// TODO: add case for multi valued attributes
-							oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ "=" + attributeValue);
-						}
+			}
+			EClassifier eClassifier = EsdlPackage.eINSTANCE.getEClassifier(rawType);
+			if (eClassifier != null && eClassifier instanceof EClass) {	
+				EClass eClass = (EClass)eClassifier;
+				EStructuralFeature feature = eClass.getEStructuralFeature(attributeName);
+				if (feature != null) {
+					if ("EString".equals(feature.getEType().getName())) { // EStrings need to be quoted and matched
+						System.out.println("EDR query attributeName type=" + feature.getEType());
+						oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ ".matches('(?i).*" + OCLUtil.escapeOCLPath(attributeValue) + ".*')");
 					} else {
-						throw new IllegalArgumentException("Cannot find attributeName " + attributeName + " in class " + eClassifier.getName() );
+						// TODO: add case for multi valued attributes
+						oclFilter.add("e.esdl.oclAsType("+esdlTypeWithPrefix+")."+attributeName+ "=" + attributeValue);
 					}
+				} else {
+					throw new IllegalArgumentException("Cannot find attributeName " + attributeName + " in class " + eClassifier.getName() );
 				}
 			} 
 		}
+
 		
 		String oclFilterString = "";
 		if (oclFilter.size() > 0) {
