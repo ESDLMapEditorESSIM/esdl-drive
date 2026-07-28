@@ -93,7 +93,7 @@ public class UserInfo {
 	/**
 	 * 
 	 * Access to folders is based on data in the JWT token. <br/>
-	 * Basic rule: Group membership means R+W access to that folder. Group membership is stored in the 'group_path' claim.<br/>
+	 * Basic rule: Group membership means R+W access to that folder. Group membership is stored in the 'user_group_path' claim.<br/>
 	 * 1. If the user is added to a group in Keycloak, it has automatically write access to that group. 
 	 * 	  ESDL Drive makes sure these folders exists when setting up a session to the Drive.<br/>
 	 * 2. Groups in Keycloak can have the attribute of 'esdl-drive-read-only' with the value of the full path of that group (e.g. /Projects/Shared_read_only_folder).
@@ -171,8 +171,8 @@ public class UserInfo {
 				if (path.isEmpty()) iterator.remove();
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
-			throw new InvalidLoginInformationException(e);
+			System.err.println("Auth error: " + e.getMessage());
+			throw e;
 		}
 
 	}

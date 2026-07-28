@@ -29,7 +29,6 @@ import java.util.logging.Logger;
 import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
-import org.eclipse.emf.cdo.eresource.CDOResourceFolder;
 import org.eclipse.emf.cdo.util.CDOUtil;
 import org.eclipse.emf.cdo.util.InvalidURIException;
 import org.eclipse.emf.ecore.EObject;

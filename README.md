@@ -62,6 +62,13 @@ Defaults to:
 
 Set EDR_ENABLED=0 to disable showing the EDR icon in the browser (both in MapEditor ESDL Browser as in this browser page
 
+#### Configuring Postgres for GIS data
+
+To configure Postgres (geometry support) use the following environmental variables: 
+`POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`.
+
+See `server.xml` for their default settings
+
 #### KEYCLOAK realm
 `KEYCLOAK_REALM` defaults to `http://keycloak:8080/auth/realms/esdl-mapeditor`
 #### KEYCLOAK external accessible URL

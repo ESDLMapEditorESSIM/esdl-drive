@@ -177,7 +177,7 @@ public class BrowserController {
         
         JsonStructure jsonObject = null;
         //System.out.println(securityContext.getUserPrincipal().getClass().getName());
-        log.info("\\-- Browse." + operation + ": " + id + ", depth="+depth);
+        log.info("\\-- Browse." + operation + ": " + id + ", depth="+depth + ", user="+userInfo.getUserName() );
         switch(op) {
 		case get_node:
 			if (id.equals("#")) {

@@ -18,6 +18,7 @@ package nl.tno.esdl.esdldrive.cdo;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,6 +53,7 @@ public class AccessController {
 	
 	public static DrivePermission getPermission(String path, UserInfo userInfo) {
 		if (userInfo.isAdmin()) return new DrivePermission(path, path, true, true);
+		List<String> edr_public_writable_paths = userInfo.getReadWriteFolders().stream().filter(p -> p.startsWith(EDR_PUBLIC_FOLDER_PATH) && path.startsWith(p)).toList();
 
 		// Iterate over all groups and their access
 		// Groups in the token provide read/write access
@@ -68,6 +70,16 @@ public class AccessController {
 					// correct role to write to the EDR
 					return new DrivePermission(path, readOnlyPath, true, true);
 				} else {
+					if (edr_public_writable_paths.size() > 0) {
+						if (userInfo.getKeyCloakGroups().contains(path)) {
+							// The user has write access in a specific EDR public folder, but don't let it remove the
+							// folder as it is specified in the groups of Keycloak
+							return new DrivePermission(path, readOnlyPath, true, true, false);
+						} else {
+							// The user has write access in a specific EDR public folder 
+							return new DrivePermission(path, readOnlyPath, true, true, true);
+						}
+					}
 					// make read only path only accessible, not writable
 					return new DrivePermission(path, readOnlyPath, false, true);
 				}

@@ -18,7 +18,7 @@
 <!--            <property name="javax.persistence.schema-generation.create-script-source"
                     value="META-INF/sql/create_postgis.sql" />-->
 			<property name="hibernate.hbm2ddl.auto" value="create" />
-<!--			<property name="hibernate.show_sql" value="true" />-->
+<!--			<property name="hibernate.show_sql" value="true" />  see also log4j.properties-->
 			<property name="hibernate.hbm2ddl.charset_name" value="UTF-8" />
 <!--			<property name="jakarta.persistence.jdbc.url" value="postgres://drive@password:localhost:5432/esdl_geometries" />-->
 			<property name="jakarta.persistence.query.timeout" value="600000" />
@@ -29,8 +29,6 @@
 			<!-- for hibernate 6.6.3.Final there is an issue with the classloader, see https://stackoverflow.com/questions/77986078/stackoverflowerror-during-class-transformation-on-startup-of-liberty-server -->
 			<property name="hibernate.enhancer.enableDirtyTracking" value="false"/>
 			<property name="hibernate.enhancer.enableLazyInitialization" value="false"/>
-
-
 
 		</properties>
 	</persistence-unit>

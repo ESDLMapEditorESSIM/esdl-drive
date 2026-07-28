@@ -1076,6 +1076,9 @@ public class CDOManager {
 		DrivePermission permission = AccessController.getPermission(path, userInfo);
 		if (!permission.isWritable()) {
 			throw new PermissionDeniedException(permission.getPath() + " is not accessible by " + userInfo.getUserName());
+		} else if (!permission.isDeletable()) {
+			// prevent folders defined in keycloak to be moveable
+			throw new PermissionDeniedException(permission.getPath() + " cannot be moved by " + userInfo.getUserName());
 		}
 		CDONet4jSession session = getSession(userInfo);
 		CDOTransaction transaction = session.openTransaction();

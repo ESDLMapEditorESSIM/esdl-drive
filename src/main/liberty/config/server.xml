@@ -89,9 +89,8 @@
 
 	<!-- com.ibm.ws.webcontainer*=all:HTTPChannel=all:GenericBNF=all -->
 	<logging
-		traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all:nl.tno.*=all"
-		consoleLogLevel="INFO" consoleFormat="SIMPLE" maxFileSize="20" /> <!--
-	maxFiles="8"   -->
+		traceSpecification="com.ibm.ws.webcontainer*=all:com.ibm.ws.security.*=all:nl.tno.*=all:org.hibernate.*=info"
+		consoleLogLevel="INFO" consoleFormat="SIMPLE" maxFileSize="20" /> <!--	maxFiles="8"   -->
 
 	<!-- database persistence -->
 	<library id="jdbcLib" apiTypeVisibility="+third-party">

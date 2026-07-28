@@ -126,8 +126,13 @@ public class EDRResource {
 			return Response.status(Status.UNAUTHORIZED).entity(JSONUtil.getErrorAsJson("Not a public folder")).build();
 		}		 
 		String path = URI.decode(id);
-		
-		PublicUserInfo userInfo = new PublicUserInfo();
+		UserInfo userInfo = new PublicUserInfo();
+//		try {
+//			IdToken token = PropagationHelper.getIdToken();
+//			userInfo = AccessController.userInfoFromToken(token);
+//		} catch (Exception e) {
+//			userInfo = new PublicUserInfo();
+//		}
 		System.out.println("Browse public EDR: " + path);
 		switch(operation) {
 			case get_node:
