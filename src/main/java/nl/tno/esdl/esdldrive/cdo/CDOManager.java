@@ -940,7 +940,7 @@ public class CDOManager {
 		ResourceMetaData metaData = this.getMetaData(view, fileName);
 		if (metaData != null) {
 			map.put("size", ESDLUtil.bytesSizeToString(metaData.getByteSize()));
-			map.put("# objects", metaData.getObjectCount());
+			map.put("nrOfObjects", metaData.getObjectCount());
 		} else if (cached) {
 			map.put("size", ESDLUtil.bytesSizeToString(getCache().get(fileName).getXmlContent().length()));
 		}
