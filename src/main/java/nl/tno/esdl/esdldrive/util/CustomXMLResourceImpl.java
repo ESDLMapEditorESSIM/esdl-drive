@@ -1,5 +1,6 @@
 package nl.tno.esdl.esdldrive.util;
 
+import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.xmi.XMLHelper;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceImpl;
 
@@ -15,6 +16,11 @@ public class CustomXMLResourceImpl extends XMLResourceImpl {
 	public CustomXMLResourceImpl() {
 		super();
 	}
+	
+	public CustomXMLResourceImpl(URI uri) {
+		super(uri);
+	}
+
 	
 	/**
 	 * 

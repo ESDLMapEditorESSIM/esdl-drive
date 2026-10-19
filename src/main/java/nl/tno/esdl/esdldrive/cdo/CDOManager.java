@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -293,8 +294,12 @@ public class CDOManager {
 					// for EMFCompare the id needs to be set in order to find equal objects
 					EnergyDataDescription edd = (EnergyDataDescription) esFromDatabase;
 					//log.info("EMF Compare (pre):  EDD Input path " + resourceName + ", database path: " + fromDatabase.getPath());
-					edd.setId(fromDatabase.getPath());
+					edd.setId(fromDatabase.getPath()); // ID is used in EMFCompare!
 					//log.info("EMF Compare (post): EDD Input path " + resourceName + ", database path: " + fromDatabase.getPath());
+					if (edd.getEsdl() != null) {
+						edd.setEsdlType(edd.getEsdl().eClass().getName());
+					}
+					edd.setLastChanged(new Date()); // this makes sure that the EDD object is always changed when uploading a new version
 				}
 				
 				log.info("Database: " + esFromDatabase + ", input: " + uploadedEObject);

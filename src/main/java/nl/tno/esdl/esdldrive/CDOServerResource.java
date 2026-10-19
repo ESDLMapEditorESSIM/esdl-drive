@@ -18,6 +18,7 @@ package nl.tno.esdl.esdldrive;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,7 @@ import org.eclipse.emf.cdo.common.commit.CDOCommitInfo;
 import org.eclipse.emf.cdo.common.util.CDOResourceNodeNotFoundException;
 import org.eclipse.emf.cdo.eresource.CDOResource;
 import org.eclipse.emf.cdo.util.CDOUtil;
+import org.eclipse.emf.cdo.util.CommitException;
 import org.eclipse.emf.cdo.util.InvalidURIException;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.xmi.PackageNotFoundException;
@@ -59,6 +61,7 @@ import jakarta.inject.Inject;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HEAD;
@@ -214,6 +217,7 @@ public class CDOServerResource {
 			cdoResource.cdoView().close();
 			return Response.ok(result).type(contentType).lastModified(lastModified).build();
 		} catch (CDOResourceNodeNotFoundException | InvalidURIException e ) {
+			log.warning("Not found: " + e);
 			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
@@ -273,7 +277,7 @@ public class CDOServerResource {
 				while ((length = stream.read(buffer)) != -1) {
 				    result.write(buffer, 0, length);
 				}
-				String xmlString = result.toString(StandardCharsets.UTF_8.name());
+				String xmlString = result.toString(StandardCharsets.UTF_8);
 				System.out.println("Storing in cache");
 				
 				cdoManager.setCache(resourceURL, xmlString, null);				
@@ -372,27 +376,48 @@ public class CDOServerResource {
 	}
 
 	
-	/*
-	@GET
-	@Path("/store")
-	@Produces(MediaType.TEXT_PLAIN)
-	public Response storeEDSL() {
-		UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
-		EnergySystem es = EsdlFactory.eINSTANCE.createEnergySystem();
-		es.setName("New ES");
-		es.setDescription("now = " + System.currentTimeMillis());
-
-		try {
-			cdoManager.storeResource(userInfo, "/ewoud/test1.esdl", es);
-		} catch (Exception e) {
-			log.severe("Error storing file in CDO repository " + e.getMessage());
-			e.printStackTrace();
-			return Response.serverError().entity("Error storing resource " + e.getMessage()).build();
+	@DELETE
+	// Delete a resource with resourceURL
+	@Path("/resource/{resourceURL:.+}")
+	@Consumes({MediaType.APPLICATION_XML, MediaType.APPLICATION_OCTET_STREAM})
+	@RolesAllowed("cdo_read")
+	@Operation(summary = "Deletes an ESDL-file from the ESDL Drive", description = "Deletes the given ESDL-file from the ESDL Drive.")
+	@Tag(ref = "ESDL Drive")
+	@Parameters({
+			@Parameter(allowEmptyValue = false, name = "resourceURL", in = ParameterIn.PATH, description = "The path and filename of the resource, e.g. /folder1/myEnergySystem.esdl. If it has spaces, it needs to be url encoded", example = "/Projects/MyProject/MyEnergySystem.esdl"),
+	})
+	@APIResponses({
+			@APIResponse(responseCode = "200", description = "Deletes the file indicated by the supplied URI. Only response is a HTTP status code OK when succeded"),
+			@APIResponse(responseCode = "400", description = "Insufficient access to delete the resource"),
+			@APIResponse(responseCode = "500", description = "Deleting failed.")
+	})
+	public Response deleteResource(
+			@PathParam("resourceURL") String resourceURL) {
+		if (!resourceURL.startsWith("/")) {
+			resourceURL = "/" + resourceURL;
 		}
-
-		return Response.accepted("Success").build();
+		try {
+			UserInfo userInfo = AccessController.userInfoFromToken(PropagationHelper.getIdToken());
+			log.info("DELETE ResourceURL: " + resourceURL + " [username=" + userInfo.getUserName() + ", ip=" + request.getRemoteAddr() + "]");
+			
+			DrivePermission permission = AccessController.getPermission(resourceURL, userInfo);
+			if (!permission.isAccessible()) {
+				return Response.serverError().status(Status.FORBIDDEN).entity("Access denied").build();
+			}
+			boolean resourceExists = cdoManager.existResource(userInfo, resourceURL);
+			if (resourceExists) {
+				cdoManager.deleteResource(userInfo, resourceURL);
+				return Response.ok().build();
+			} else {
+				return Response.status(Status.NOT_FOUND).build();
+			}
+		} catch (PermissionDeniedException | InvalidLoginInformationException e) {
+			return Response.serverError().status(Status.FORBIDDEN).build();
+		} catch (CDOResourceNodeNotFoundException | IOException | CommitException e) {
+			return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
+		}
 	}
-	*/
+	
 	
 	@GET
 	@Path("/logout")

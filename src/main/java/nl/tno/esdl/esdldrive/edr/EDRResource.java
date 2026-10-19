@@ -20,6 +20,7 @@ import org.eclipse.emf.cdo.eresource.CDOResourceNode;
 import org.eclipse.emf.cdo.eresource.EresourcePackage;
 import org.eclipse.emf.cdo.util.CommitException;
 import org.eclipse.emf.cdo.util.ConcurrentAccessException;
+import org.eclipse.emf.cdo.util.InvalidURIException;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EObject;
@@ -207,6 +208,9 @@ public class EDRResource {
 			Date lastModified = new Date(cdoResource.cdoRevision(true).getTimeStamp());
 			cdoResource.cdoView().close();
 			return Response.ok(xmlString).lastModified(lastModified).build();
+		} catch (CDOResourceNodeNotFoundException | InvalidURIException e ) {
+			log.warning("Not found: " + e);
+			return Response.status(Status.NOT_FOUND).entity("Failed to find the resource at " + resourceURL).type(MediaType.TEXT_PLAIN).build();
 		} catch (Exception e) {
 			log.severe("Error: " + e);
 			e.printStackTrace();
@@ -457,8 +461,7 @@ public class EDRResource {
 //			if (edd.getId() == null || edd.getId().isBlank()) {
 //				edd.setId(path); // needed for EMF Compare
 //			}
-			Resource resource;
-			resource = new XMLResourceImpl();
+			Resource resource = new XMLResourceImpl();
 			resource.getContents().add(edd);
 			CDOCommitInfo commitInfo = cdoManager.storeResource(userInfo, path, resource, commitMessage, false, resourceMetaData);
 			System.out.println(commitInfo);

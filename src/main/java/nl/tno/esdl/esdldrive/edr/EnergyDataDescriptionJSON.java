@@ -121,8 +121,10 @@ public class EnergyDataDescriptionJSON {
 			// no data, no image
 			Image edrImage = EddFactory.eINSTANCE.createImage();
 			edrImage.setContentType(image.getContentType());
+			//@Deprecated
 			byte[] imageBytes = image.getImageData().getBytes("UTF-8");
 			edrImage.setImageData(imageBytes);
+			edrImage.setBase64ImageData(image.getImageData());
 			edd.setImage(edrImage);
 		}
 		
@@ -198,9 +200,15 @@ public class EnergyDataDescriptionJSON {
 				}
 			}
 		}
-		if (addImageData && edd.getImage() != null && edd.getImage().getImageData() != null) {
+		if (addImageData && edd.getImage() != null && (edd.getImage().getImageData() != null || !edd.getImage().getBase64ImageData().isEmpty())) {
 			try {
-				ImageJSON imageJSON = new ImageJSON(edd.getImage().getContentType(), new String(edd.getImage().getImageData(), "UTF-8"));
+				ImageJSON imageJSON = null;
+				if (!edd.getImage().getBase64ImageData().isEmpty()) {
+					imageJSON = new ImageJSON(edd.getImage().getContentType(), edd.getImage().getBase64ImageData());
+				} else {
+					//@Deprecated
+					imageJSON = new ImageJSON(edd.getImage().getContentType(), new String(edd.getImage().getImageData(), "UTF-8"));
+				}
 				json.setImage(imageJSON);
 			} catch (UnsupportedEncodingException e) {
 				e.printStackTrace();
